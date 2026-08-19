@@ -1,0 +1,502 @@
+/* Task Vault cockpit (FR-011). Colors ride Obsidian theme variables so light/dark both work. */
+
+.tv-cockpit {
+  padding: 8px 6px;
+  overflow-y: auto;
+}
+
+/* ---------- capture box (Task 9) ---------- */
+.tv-capture {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+/* ---------- sections ---------- */
+.tv-section {
+  margin-bottom: 6px;
+}
+.tv-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tv-section-header:hover {
+  background: var(--background-modifier-hover);
+}
+.tv-fold {
+  width: 1em;
+  color: var(--text-faint);
+}
+.tv-section-title {
+  flex: 1;
+}
+.tv-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.tv-empty {
+  padding: 2px 10px;
+  color: var(--text-faint);
+}
+
+/* ---------- rows ---------- */
+/* Card layout: pinned left rail (fold/checkbox/glyph) + fluid right column with a
+   wrapping multi-line title and a meta strip. Status rides a 3px left accent bar —
+   bold/masculine high-contrast treatment (design pref 2026-08-19). */
+.tv-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  margin: 3px 0;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
+  background: var(--background-primary);
+  font-size: var(--font-ui-small);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.tv-row:hover {
+  border-color: var(--background-modifier-border-hover);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+/* status accent: left border rail, per state */
+.tv-status-inbox   { border-left-color: var(--text-faint); }
+.tv-status-todo    { border-left-color: var(--color-accent); }
+.tv-status-doing   { border-left-color: var(--color-blue); }
+.tv-status-waiting { border-left-color: var(--color-yellow); }
+.tv-status-blocked { border-left-color: var(--color-red); }
+.tv-status-done    { border-left-color: var(--color-green); }
+.tv-status-cancelled { border-left-color: var(--text-faint); }
+
+.tv-rail {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.tv-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tv-glyph {
+  width: 1.2em;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.tv-title {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+.tv-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* dates row and tags row are two separate lines below the title (user request 2026-08-19) */
+.tv-dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.tv-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.tv-tag {
+  font-size: 0.78em;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  white-space: nowrap;
+}
+.tv-tag-repo {
+  color: var(--color-cyan);
+}
+.tv-tag-project {
+  color: var(--color-accent);
+}
+.tv-tag-area {
+  color: var(--color-purple);
+}
+.tv-tag-waiting {
+  color: var(--color-yellow);
+}
+
+/* priority tags p0-p3: escalating weight/color */
+.tv-pri {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.tv-pri-p0 {
+  background: var(--color-red);
+  color: var(--text-on-accent);
+  box-shadow: 0 0 6px rgba(255, 59, 48, 0.4);
+}
+.tv-pri-p1 {
+  background: var(--color-orange, #e0a030);
+  color: var(--text-on-accent);
+}
+.tv-pri-p2 {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+.tv-pri-p3 {
+  background: transparent;
+  border: 1px dashed var(--text-faint);
+  color: var(--text-faint);
+}
+.tv-start {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+.tv-check {
+  accent-color: var(--color-green);
+}
+
+/* status accents (glyph color per state — the legend is the single source, this matches it) */
+.tv-status-inbox .tv-glyph {
+  color: var(--text-muted);
+}
+.tv-status-todo .tv-glyph {
+  color: var(--text-normal);
+}
+.tv-status-doing .tv-glyph {
+  color: var(--color-blue);
+}
+.tv-status-blocked .tv-glyph {
+  color: var(--color-red);
+}
+.tv-status-done .tv-glyph {
+  color: var(--color-green);
+}
+.tv-status-cancelled .tv-glyph {
+  color: var(--text-faint);
+}
+.tv-status-done .tv-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+.tv-status-cancelled .tv-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+/* doing gets a subtle live tint so active work reads at a glance */
+.tv-status-doing {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--color-blue-rgb, 82, 139, 255), 0.08),
+    transparent 55%
+  );
+}
+
+/* delegation marker */
+.tv-delegate {
+  color: var(--color-purple);
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: help;
+}
+
+/* blocked → grayed out; waiting → amber marker */
+.tv-blocked {
+  opacity: 0.55;
+}
+.tv-block-src {
+  color: var(--color-red);
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: help;
+}
+.tv-waiting .tv-glyph {
+  color: var(--color-yellow);
+}
+
+/* ---------- countdown / overdue badges ---------- */
+.tv-badge {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.tv-countdown {
+  background: var(--color-yellow);
+  color: var(--text-on-accent);
+}
+.tv-overdue {
+  background: var(--color-red);
+  color: var(--text-on-accent);
+  font-weight: 700;
+  box-shadow: 0 0 6px rgba(255, 59, 48, 0.45);
+}
+.tv-date {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+/* ---------- legend panel (FR-016) ---------- */
+.tv-legend h3 {
+  margin: 12px 0 4px;
+}
+.tv-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.tv-legend-label {
+  color: var(--text-muted);
+}
+
+/* ---------- inline interaction (Task 10/13) ---------- */
+.tv-glyph {
+  cursor: pointer;
+}
+.tv-glyph:hover {
+  color: var(--text-accent);
+}
+.tv-title {
+  cursor: pointer;
+}
+.tv-badge {
+  cursor: pointer;
+}
+/* sub-task rows render indented under their parent */
+.tv-child {
+  margin-left: 1.4em;
+}
+.tv-progress {
+  color: var(--text-faint);
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+.tv-reschedule {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+/* ---------- detail popover (Task 13; restyled 2026-08-19) ----------
+   Same card language as the rows: bordered surface, 3px status accent rail, chip-shaped
+   controls, theme variables only. Three panels (状态更改 / 快速填入 / 委派) + a footer. */
+.tv-detail-title {
+  width: 100%;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+/* panel card */
+.tv-panel {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.tv-panel-title {
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.tv-panel-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tv-arrow {
+  color: var(--text-faint);
+  font-weight: 700;
+}
+.tv-hint {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+}
+
+/* status chips: current state reads solid, targets read as outlined buttons */
+.tv-chip {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+.tv-chip-now {
+  color: var(--text-normal);
+  border-color: currentColor;
+}
+button.tv-chip-btn {
+  cursor: pointer;
+  box-shadow: none;
+  line-height: 1.4;
+  height: auto;
+}
+button.tv-chip-btn:hover {
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+  border-color: currentColor;
+}
+.tv-chip-todo { color: var(--color-accent); }
+.tv-chip-doing { color: var(--color-blue); }
+.tv-chip-waiting { color: var(--color-yellow); }
+.tv-chip-blocked { color: var(--color-red); }
+.tv-chip-done { color: var(--color-green); }
+.tv-chip-inbox,
+.tv-chip-cancelled { color: var(--text-faint); }
+
+/* inputs inside panels */
+.tv-detail-quick,
+.tv-detail-delegate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+.tv-detail-quick input {
+  flex: 1;
+  min-width: 140px;
+}
+.tv-detail-quick input,
+.tv-detail-delegate textarea,
+.tv-panel select {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+.tv-detail-delegate textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 6px 8px;
+  resize: vertical;
+  font-size: var(--font-ui-small);
+}
+.tv-detail-delegate button {
+  margin-left: auto;
+}
+
+/* buttons */
+.tv-btn {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.tv-btn:hover {
+  border-color: var(--background-modifier-border-hover);
+  background: var(--background-modifier-border);
+}
+.tv-btn-cta {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--text-on-accent);
+}
+.tv-btn-cta:hover {
+  background: var(--color-accent);
+  filter: brightness(1.1);
+  color: var(--text-on-accent);
+}
+.tv-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tv-detail-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.tv-detail-footer .tv-btn-cta {
+  margin-right: auto;
+}
+
+/* project subgroup divider inside a bucket (user request 2026-08-19) */
+.tv-project-divider {
+  margin: 8px 2px 2px;
+  padding: 1px 6px;
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-left: 2px solid var(--color-accent);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tv-project-divider:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.tv-project-fold {
+  width: 1em;
+  color: var(--text-faint);
+}
+.tv-project-name {
+  flex: 1;
+}
+.tv-project-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.tv-project-divider:first-child {
+  margin-top: 2px;
+}

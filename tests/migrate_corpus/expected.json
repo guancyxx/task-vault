@@ -1,0 +1,25 @@
+[
+  {
+    "title": "Ship Phase E",
+    "status": "todo",
+    "start": "2026-08-19",
+    "due": "2026-08-20",
+    "created": "2026-08-18",
+    "priority": "normal",
+    "source": "user",
+    "assignee": "hermes",
+    "project": "Task Vault",
+    "tags": ["repo/task-vault"],
+    "execution_contains": "preserve old context"
+  },
+  {
+    "title": "Review ambiguous link",
+    "status": "todo",
+    "due": "2026-08-21",
+    "created": "2026-08-18",
+    "priority": "normal",
+    "source": "cc",
+    "tags": ["Unknown Place"],
+    "doubts": ["wikilink:Unknown Place"]
+  }
+]

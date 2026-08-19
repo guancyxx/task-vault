@@ -1,0 +1,23 @@
+{
+  "name": "task-vault",
+  "version": "0.2.0",
+  "description": "Obsidian task plugin: one file per task, UUID identity, seven-state machine, DDL time control, sidebar cockpit.",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs --watch",
+    "build": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "install:vault": "node scripts/install-vault.mjs"
+  },
+  "keywords": [
+    "obsidian-plugin"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
