@@ -4,8 +4,8 @@
   "version": "0.2.0",
   "minAppVersion": "1.13.7",
   "description": "One file per task with UUID identity, a 7-state machine, execution log, delegation to AI agents, and hooks.",
-  "author": "guancyxx",
-  "authorUrl": "https://github.com/guancyxx",
+  "author": "guancyxx (官小西)",
+  "authorUrl": "https://guancyxx.cn",
   "fundingUrl": "",
   "isDesktopOnly": true
 }

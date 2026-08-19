@@ -1,8 +1,14 @@
 # Task Vault
 
+[![Author](https://img.shields.io/badge/author-guancyxx%20(官小西)-blue)](https://guancyxx.cn)
+[![Blog](https://img.shields.io/badge/blog-guancyxx.cn-8A2BE2)](https://guancyxx.cn)
+
 A structured task manager for Obsidian: **one file per task**, stable UUID identity, a
 seven-state machine, an append-only execution log, and first-class delegation to AI
 coding agents — without giving up plain-Markdown portability.
+
+> Built by [官小西 (guancyxx)](https://guancyxx.cn) — Full-Stack Developer & AI Product
+> Engineer. More open-source work: [github.com/guancyxx](https://github.com/guancyxx).
 
 > Every task is still a normal note. Frontmatter carries the structure (`id` / `status` /
 > `due` / `priority` / `project` …); the body holds `## 任务描述` and `## 执行记录`. Your
@@ -83,4 +89,4 @@ See the full spec (Chinese) in `docs/任务系统规范.md`.
 
 ## License
 
-MIT
+MIT © [guancyxx (官小西)](https://guancyxx.cn)
