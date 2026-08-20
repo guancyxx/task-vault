@@ -67,7 +67,8 @@ export default class TaskVaultPlugin extends Plugin {
     this.addCommand({
       id: 'quick-log',
       name: '记一条执行记录',
-      hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'l' }],
+      // No default hotkey (review guidance: defaults can collide with user/Obsidian bindings).
+      // Users can bind one in Settings → Hotkeys, e.g. Cmd+Shift+L.
       checkCallback: (checking: boolean) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;

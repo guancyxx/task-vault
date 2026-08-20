@@ -96,7 +96,8 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter {
 //    never fire modify/create. Fixed by also listening to the low-level 'raw' event.
 export function wireVaultEvents(app: App, store: TaskStore): EventRef[] {
   const pending = new Map<string, 'upsert' | 'remove'>();
-  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  // number = browser timer id from window.setTimeout (popout-window-safe per review guidance).
+  let flushTimer: number | null = null;
 
   const flush = (): void => {
     flushTimer = null;
@@ -110,7 +111,7 @@ export function wireVaultEvents(app: App, store: TaskStore): EventRef[] {
   const schedule = (path: string, kind: 'upsert' | 'remove'): void => {
     // A remove after an upsert (or vice versa) of the same path: last write wins.
     pending.set(path, kind);
-    if (flushTimer === null) flushTimer = setTimeout(flush, DEBOUNCE_MS);
+    if (flushTimer === null) flushTimer = window.setTimeout(flush, DEBOUNCE_MS);
   };
 
   const onChange = (f: TAbstractFile): void => {

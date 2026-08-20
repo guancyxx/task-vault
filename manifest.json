@@ -1,7 +1,7 @@
 {
   "id": "task-vault",
   "name": "Task Vault",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "minAppVersion": "1.13.7",
   "description": "One file per task with UUID identity, a 7-state machine, execution log, delegation to AI agents, and hooks.",
   "author": "guancyxx (官小西)",
