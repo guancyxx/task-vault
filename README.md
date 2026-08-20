@@ -1,5 +1,6 @@
 # Task Vault
 
+[![Icon](assets/icon-128.png)](https://guancyxx.cn)
 [![Author](https://img.shields.io/badge/author-guancyxx%20(官小西)-blue)](https://guancyxx.cn)
 [![Blog](https://img.shields.io/badge/blog-guancyxx.cn-8A2BE2)](https://guancyxx.cn)
 

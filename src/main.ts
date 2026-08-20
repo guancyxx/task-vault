@@ -59,7 +59,8 @@ export default class TaskVaultPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => void this.store.scan());
 
     this.addSettingTab(new TaskVaultSettingTab(this.app, this, this.config));
-    this.addRibbonIcon('checkbox-glyph', 'Open Task Vault', () => void this.activateView());
+    // 'vault' lucide icon — matches the Check Seal logo (vault door + check).
+    this.addRibbonIcon('vault', 'Open Task Vault', () => void this.activateView());
     this.addCommand({ id: 'open', name: 'Open', callback: () => void this.activateView() });
     this.addCommand({ id: 'legend', name: '图例', callback: () => openLegend(this.app) });
     // FR-027 / SC-011: quick-log against the active editor file — the sidebar popover only

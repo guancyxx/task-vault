@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Task Vault · Check Seal (方案02定稿)
+       暗底版:底色 #14110E,门框 #D3A043,铰链 #B8862E,对勾 #E0B85C -->
+  <rect width="512" height="512" rx="96" fill="#14110E"/>
+  <g transform="translate(256 256) scale(3.6) translate(-50 -50)">
+    <!-- 险峻方框(保险库门) -->
+    <path d="M22 12 L78 12 Q88 12 88 22 L88 78 Q88 88 78 88 L22 88 Q12 88 12 78 L12 22 Q12 12 22 12 Z"
+          fill="none" stroke="#D3A043" stroke-width="6"/>
+    <!-- 门轴双铰链 -->
+    <rect x="6" y="30" width="10" height="8" rx="2" fill="#B8862E"/>
+    <rect x="6" y="62" width="10" height="8" rx="2" fill="#B8862E"/>
+    <!-- 粗金对勾 -->
+    <path d="M28 52 L44 68 L74 34"
+          fill="none" stroke="#E0B85C" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

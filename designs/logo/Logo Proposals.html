@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Vault Logo Proposals</title>
+<style>
+  :root {
+    --bg: #14110e;
+    --bg-elevated: #1e1b17;
+    --bg-inset: #100e0c;
+    --accent: #d3a043;
+    --accent-light: #e0b85c;
+    --accent-deep: #b8862e;
+    --accent-soft: #d3a0431f;
+    --accent-glow: #d3a0434d;
+    --border: rgba(255,255,255,0.05);
+    --text: #f5f5f7;
+    --text-secondary: #a8a59f;
+    --text-muted: #5a5750;
+    --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px;
+    --shadow-out: 8px 8px 20px rgba(0,0,0,0.4), -8px -8px 20px rgba(48,44,38,0.3);
+    --shadow-inset: inset 3px 3px 8px rgba(0,0,0,0.3), inset -3px -3px 8px rgba(48,44,38,0.2);
+    --font: "Inter", "SF Pro Text", -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-display: "Urbanist", "Inter", "PingFang SC", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { margin-bottom: 36px; }
+  .eyebrow {
+    display: inline-block; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent-glow); border-radius: 100px;
+    padding: 5px 14px; margin-bottom: 14px; background: var(--accent-soft);
+  }
+  h1 { font-family: var(--font-display); font-size: 34px; font-weight: 600; letter-spacing: 0.01em; }
+  h1 .gold { color: var(--accent); }
+  .sub { color: var(--text-secondary); margin-top: 8px; font-size: 14.5px; line-height: 1.7; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 28px; }
+  .card {
+    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 16px;
+    box-shadow: var(--shadow-out);
+  }
+  .stage {
+    aspect-ratio: 1; border-radius: var(--r-md); background: var(--bg-inset);
+    display: flex; align-items: center; justify-content: center; position: relative;
+    box-shadow: var(--shadow-inset); overflow: hidden;
+  }
+  .stage.light { background: #f5f2ec; }
+  .mark { width: 62%; height: 62%; position: relative; }
+  .name { font-family: var(--font-display); font-size: 17px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+  .name .no { color: var(--accent); font-size: 12px; letter-spacing: 0.14em; }
+  .desc { color: var(--text-secondary); font-size: 13px; line-height: 1.65; }
+
+  /* ============ Logo 1: VAULT MONOGRAM — 粗衬线 V，金切入 ============ */
+  .v1 .mark { display: flex; align-items: center; justify-content: center; }
+  .v1 svg { width: 100%; height: 100%; }
+
+  /* ============ Logo 2: CHECK SEAL — 险峻方框 + 金对勾 ============ */
+  .v2 .mark { display: flex; align-items: center; justify-content: center; }
+  .v2 svg { width: 88%; height: 88%; }
+
+  /* ============ Logo 3: T STACK — T 双杠,底层深金 ============ */
+  .v3 .mark { display: flex; align-items: center; justify-content: center; }
+  .v3 svg { width: 82%; height: 82%; }
+
+  footer { margin-top: 40px; color: var(--text-muted); font-size: 12.5px; line-height: 1.8; }
+  footer b { color: var(--text-secondary); font-weight: 600; }
+
+  .row { display: flex; gap: 10px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px;
+    color: var(--text-secondary); border: 1px solid var(--border);
+    border-radius: 100px; padding: 4px 12px; background: var(--bg-inset);
+  }
+  .chip svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Task Vault · Identity</div>
+    <h1>Logo 方案 <span class="gold">3 提</span></h1>
+    <div class="sub">暗色基底 #14110E · 金 #D3A043 · Urbanist/Inter —— 取自 guancyxx.cn 品牌变量。三个方向都走「heavy / masculine / 一个核心概念」，可直接缩到 16px 插件图标。</div>
+  </header>
+
+  <div class="grid">
+    <!-- ================ 1. VAULT MONOGRAM ================ -->
+    <div class="card v1">
+      <div class="stage">
+        <div class="mark">
+          <svg viewBox="0 0 100 100" fill="none">
+            <!-- 底部厚斜衬线 V,切角顶部 -->
+            <path d="M14 18 L34 18 L52 66 L70 18 L90 18 L62 92 L40 92 Z"
+                  fill="#1e1b17" stroke="#d3a043" stroke-width="4" stroke-linejoin="miter"/>
+            <!-- 金色切入楔:从右上劈进 V 的右翼 -->
+            <path d="M63 92 L90 18 L74 18 L49 92 Z" fill="#d3a043"/>
+            <!-- 高光细线 -->
+            <path d="M40 92 L14 18 L24 18 L46 76 Z" fill="#e0b85c"/>
+          </svg>
+        </div>
+      </div>
+      <div class="name"><span class="no">01</span>Vault Monogram</div>
+      <div class="desc">衬线重锤 V——「保险库」的字面身份。金楔从右翼劈入，正像是任务被「存入金库」的一刀。最稳的 monogram 方向。</div>
+      <div class="row">
+        <span class="chip"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="3" fill="#14110e" stroke="#d3a043" stroke-width="1.6"/><path d="M5 8.2 L7.2 10.4 L11 5.6" stroke="#d3a043" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>16px 可辨</span>
+        <span class="chip">字母向</span>
+      </div>
+    </div>
+
+    <!-- ================ 2. CHECK SEAL ================ -->
+    <div class="card v2">
+      <div class="stage">
+        <div class="mark">
+          <svg viewBox="0 0 100 100" fill="none">
+            <!-- 险峻方框(内凹圆角=保险库门),左侧厚边像门轴 -->
+            <path d="M22 12 L78 12 Q88 12 88 22 L88 78 Q88 88 78 88 L22 88 Q12 88 12 78 L12 22 Q12 12 22 12 Z"
+                  fill="none" stroke="#d3a043" stroke-width="6"/>
+            <!-- 门轴双铰链 -->
+            <rect x="6" y="30" width="10" height="8" rx="2" fill="#b8862e"/>
+            <rect x="6" y="62" width="10" height="8" rx="2" fill="#b8862e"/>
+            <!-- 粗金对勾,占满腔体 -->
+            <path d="M28 52 L44 68 L74 34"
+                  stroke="#e0b85c" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="name"><span class="no">02</span>Check Seal</div>
+      <div class="desc">保险库门 + 完成对勾——「把任务锁进已完成」。铰链细节让方块不软,对勾是功能的最短表达。识别距离最远的方案。</div>
+      <div class="row">
+        <span class="chip"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="3" fill="#14110e" stroke="#d3a043" stroke-width="1.6"/><path d="M5.4 8.2 L7.2 10 L11 5.8" stroke="#e0b85c" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>16px 可辨</span>
+        <span class="chip">符号向</span>
+      </div>
+    </div>
+
+    <!-- ================ 3. T STACK ================ -->
+    <div class="card v3">
+      <div class="stage">
+        <div class="mark">
+          <svg viewBox="0 0 100 100" fill="none">
+            <!-- 下层 T(深金),上层 T(亮金)错位堆叠 = 任务堆栈/金条 -->
+            <path d="M18 16 L82 16 L82 30 L58 30 L58 88 L42 88 L42 30 L18 30 Z"
+                  fill="#b8862e" transform="translate(7 9)"/>
+            <path d="M18 16 L82 16 L82 30 L58 30 L58 88 L42 88 L42 30 L18 30 Z"
+                  fill="#d3a043"/>
+            <!-- 顶层高光 -->
+            <path d="M18 16 L82 16 L82 22 L18 22 Z" fill="#e0b85c"/>
+          </svg>
+        </div>
+      </div>
+      <div class="name"><span class="no">03</span>T Stack</div>
+      <div class="desc">双层 T 错位堆叠——「Task」的首字母 + 金条堆栈的既视感。最几何、最工程感的方向,深浅金自带体积。</div>
+      <div class="row">
+        <span class="chip"><svg viewBox="0 0 16 16"><path d="M4 3.5 L14 3.5 L14 6 L9.6 6 L9.6 13 L8.4 13 L8.4 6 L4 6 Z" fill="#d3a043"/></svg>16px 可辨</span>
+        <span class="chip">几何向</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <b>适配说明</b> —— 三案同一套品牌变量(底 #14110E / 金 #D3A043 / 高光 #E0B85C / 深金 #B8862E)。
+    选定方向后交付:512/128/64/32/16 PNG(SVG 矢量源)、marketplace 256×256、GitHub social preview、
+    以及 favicon 变体(浅底版本会把外框换 #14110E 描边)。
+  </footer>
+</div>
+</body>
+</html>
