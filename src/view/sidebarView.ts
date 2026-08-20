@@ -18,9 +18,11 @@ export type CaptureHandler = (text: string, now: Date) => Promise<void>;
 
 export const VIEW_TYPE_TASK_VAULT = 'task-vault-view';
 
+// Section order (user request 2026-08-20): overdue first — what's burning shows on top,
+// before today. Then today, this week, done-today.
 const SECTIONS: Array<{ bucket: Bucket; label: string }> = [
-  { bucket: 'today', label: '今天' },
   { bucket: 'overdue', label: '过期' },
+  { bucket: 'today', label: '今天' },
   { bucket: 'week', label: '本周' },
   { bucket: 'done', label: '今日完成' },
 ];
