@@ -1,7 +1,11 @@
 /* Task Vault cockpit (FR-011). Colors ride Obsidian theme variables so light/dark both work. */
 
 .tv-cockpit {
-  padding: 8px 6px;
+  /* Bottom padding is NOT symmetry with the top: Obsidian's status bar floats over the
+     bottom-right corner, i.e. over this pane's last ~27px. With only 8px there, the final row
+     stays under the status bar even scrolled all the way down — there is nothing left to
+     scroll, so the task is simply unreachable. 36px clears a 27px bar and keeps the 8px gap. */
+  padding: 8px 6px 36px;
   overflow-y: auto;
 }
 

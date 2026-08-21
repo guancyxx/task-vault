@@ -46,6 +46,14 @@ elif args and args[0] == "complete":
     reminder = next(item for item in state["reminders"] if item["id"] == identifier)
     reminder["isCompleted"] = True
     print(json.dumps(reminder, ensure_ascii=False))
+elif args and args[0] == "delete":
+    identifier = args[1]
+    if os.environ.get("MOCK_REMINDERS_FAIL_DELETE") == "1":
+        raise SystemExit(f"mock delete failure: {identifier}")
+    if not any(item["id"] == identifier for item in state["reminders"]):
+        raise SystemExit(f"reminder not found: {identifier}")
+    state["reminders"] = [item for item in state["reminders"] if item["id"] != identifier]
+    print(json.dumps({"deleted": identifier}, ensure_ascii=False))
 else:
     raise SystemExit(f"unsupported mock invocation: {args}")
 

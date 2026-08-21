@@ -141,7 +141,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - FR-022 hook 命令模板、默认提醒时刻、兜底阈值均在设置面板可配
 
 同步与迁移：
-- FR-023 Reminders 同步器重写（scripts/reminders_sync.py）：task.id↔Reminders UUID（frontmatter mirror 块）；date→全天提醒（09:00 或 due−offset）、datetime→定时；UTC +8h 规则；双向完成回写（Reminders 完成→回写 done+补 fire terminal hook，含 Obsidian 关闭场景）；Siri/Reminders 新增回流→inbox 任务（source:siri）；唯一清单「待办」；程序性 complete 与用户动作区分
+- FR-023 Reminders 同步器重写（scripts/reminders_sync.py）：task.id↔Reminders UUID（frontmatter mirror 块）；date→全天提醒（09:00 或 due−offset）、datetime→定时；UTC +8h 规则；双向完成回写（Reminders 完成→回写 done+补 fire terminal hook，含 Obsidian 关闭场景）；Siri/Reminders 新增回流→inbox 任务（source:siri）；唯一清单「待办」；程序性 complete 与用户动作区分；孤儿（身份不明残留）只报告不自动删——归档脚本删除自己名下 mirror 属生命周期收尾非孤儿清理（T023, 2026-08-21）
 - FR-024 mirror 块仅同步器读写，插件与 agent 协议禁止触碰
 - FR-025 迁移脚本：31 条开放任务→任务文件（UUID 生成、emoji 日期/`#src`/优先级→frontmatter、dry-run 报告先行）；历史日文件→`03 Tasks/_archive/` 只读
 - FR-026 cron/agent 写入协议适配：6 个 cron 中产生/勾选任务者改写为新协议；obsidian-vault / obsidian-task-lifecycle skill 更新；Dashboard DQL 面板与 #hermes→ntfy→订阅器触发链标记退役
