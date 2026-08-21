@@ -305,4 +305,4 @@
 - [ ] T020 验证 auto-update write_reading_todo 新路径首产 per FR-026 (partial) — 脚本 08-20 已迁，因 08-21 更新失败无产出，待一次成功更新
 - [ ] T021 修正 spec.md FR-001 与 AGENTS.md §5 的目录布局描述 per FR-001 (contradicts) — 两处仍写「03 Tasks/ 顶层平铺 YYYY-MM-DD-slug」，实际定稿为 项目/日期 两级；连带 Dashboard.md 迁移注记里的 `<项目>/<年-月>`
 - [ ] T022 处置 3 个非标准文件 per FR-001 (unrequested) — `03 Tasks/2026-08-20.md`（旧格式日文件）、`AUDIT-pr1153.md`（无 frontmatter 审计报告）、`睿源智能/logo/README.md`：留或移待用户拍板，agent 不擅动
-- [ ] T023 清理迁移期孤儿 Reminders（34 个）per FR-023 (partial) — 契约规定只报告不自动删；列出清单供用户一次性确认删除
+- [x] T023 清理迁移期孤儿 Reminders（34 个）per FR-023 (partial) — 契约规定只报告不自动删；列出清单供用户一次性确认删除 ✅ 2026-08-21
