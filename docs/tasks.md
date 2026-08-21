@@ -293,3 +293,16 @@
 | 17 | 协议适配+退役 | M | P | FR-026 |
 
 依赖主线：1→2→3→{4,5,6}→7→8→9 →{10,11}→12→13 →{14,15}→16→17。
+
+---
+
+## Phase G — Convergence（Checkpoint F 终验收敛，2026-08-21 审计产出）
+
+> spec-convergence-audit Mode B 全库审计后的可执行残留。本轮已当场修复的不在此列（见执行记录 08-21 09:35/09:28）。
+
+- [ ] T018 验证早报 cron 第四步健康注入首跑 per FR-026 (partial) — prompt 已加、08-21 当日任务系手工补建，明晨 02:00 首跑待验
+- [ ] T019 实测 lark save_review_task 新格式产出 per FR-026 (partial) — 代码已迁 Task Vault 格式并隔离测试通过，下次早会实测
+- [ ] T020 验证 auto-update write_reading_todo 新路径首产 per FR-026 (partial) — 脚本 08-20 已迁，因 08-21 更新失败无产出，待一次成功更新
+- [ ] T021 修正 spec.md FR-001 与 AGENTS.md §5 的目录布局描述 per FR-001 (contradicts) — 两处仍写「03 Tasks/ 顶层平铺 YYYY-MM-DD-slug」，实际定稿为 项目/日期 两级；连带 Dashboard.md 迁移注记里的 `<项目>/<年-月>`
+- [ ] T022 处置 3 个非标准文件 per FR-001 (unrequested) — `03 Tasks/2026-08-20.md`（旧格式日文件）、`AUDIT-pr1153.md`（无 frontmatter 审计报告）、`睿源智能/logo/README.md`：留或移待用户拍板，agent 不擅动
+- [ ] T023 清理迁移期孤儿 Reminders（34 个）per FR-023 (partial) — 契约规定只报告不自动删；列出清单供用户一次性确认删除
