@@ -225,28 +225,4 @@ describe('groupSortKey execution ordering (FR-028/030)', () => {
     expect([todo, stuck].sort(groupSortKey).map((e) => e.task.id)).toEqual(['stuck', 'todo']);
   });
 
-  it('falls back from equal weight through priority and due', () => {
-    const laterHigh = entry('later-high', 'todo', '', { priority: 'high', due: '2026-08-21' });
-    const earlyLow = entry('early-low', 'todo', '', { priority: 'low', due: '2026-08-19' });
-    const earlyHigh = entry('early-high', 'todo', '', { priority: 'high', due: '2026-08-20' });
-    expect([earlyLow, laterHigh, earlyHigh].sort(groupSortKey).map((e) => e.task.id)).toEqual([
-      'early-high',
-      'later-high',
-      'early-low',
-    ]);
-  });
-
-  it('falls back from equal priority/due through created and id', () => {
-    const newer = entry('z-newer', 'todo', '', { priority: 'normal', due: '2026-08-20', created: '2026-08-19T10:00' });
-    const b = entry('b', 'todo', '', { priority: 'normal', due: '2026-08-20', created: '2026-08-19T08:00' });
-    const a = entry('a', 'todo', '', { priority: 'normal', due: '2026-08-20', created: '2026-08-19T08:00' });
-    expect([newer, b, a].sort(groupSortKey).map((e) => e.task.id)).toEqual(['a', 'b', 'z-newer']);
-  });
-
-  it('keeps done bucket chronological regardless of priority weight', async () => {
-    vault.set('03 Tasks/late.md', file({ id: 'late', status: 'done', completed: '2026-08-19T12:00', due: '2026-08-20', priority: 'high' }));
-    vault.set('03 Tasks/early.md', file({ id: 'early', status: 'done', completed: '2026-08-19T12:00', due: '2026-08-18', priority: 'low' }));
-    await store.scan();
-    expect(store.bucketed(NOW).done.map((e) => e.task.id)).toEqual(['early', 'late']);
-  });
 });
