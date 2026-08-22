@@ -196,7 +196,7 @@ export class TaskStore {
   }
 
   bucketed(now: Date): BucketedView {
-    const view: BucketedView = { inbox: [], today: [], overdue: [], week: [], done: [] };
+    const view: BucketedView = { review: [], inbox: [], today: [], overdue: [], week: [], done: [] };
     for (const e of this.byPath.values()) {
       const b = bucketOf(e.task, now);
       if (b === 'done' && !completedToday(e.task, now)) continue; // 今日完成 only

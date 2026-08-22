@@ -5,6 +5,7 @@
 // Left click opens the task document; right click (contextmenu) opens the detail popover.
 
 import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
+import type { AgentPhase } from '../model/agentProgress';
 import { countdownLabel } from '../time/timeRules';
 
 interface StatusMeta {
@@ -73,6 +74,7 @@ export interface RowContext {
   actions?: RowActions;
   child?: RowChild; // present when the task has sub-tasks
   indent?: boolean; // this row is itself a sub-task rendered under its parent
+  agentPhase?: { phase: AgentPhase; lastActivity?: string };
 }
 
 function isTerminal(status: Status): boolean {
@@ -140,6 +142,18 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
   if (task.assignee && task.assignee !== 'user') {
     tags.createSpan({ cls: 'tv-tag tv-delegate', text: `${DELEGATE_GLYPH} ${task.assignee}` });
   }
+  if (ctx.agentPhase) {
+    const { phase, lastActivity } = ctx.agentPhase;
+    let text = AGENT_PHASE_LABEL[phase];
+    let stale = false;
+    if (phase === 'working' && lastActivity) {
+      const hours = Math.max(0, Math.floor((ctx.now.getTime() - parseLogTime(lastActivity).getTime()) / 3_600_000));
+      text += ` ·${hours}h`;
+      stale = hours > 4;
+    }
+    const chip = tags.createSpan({ cls: `tv-tag tv-agentphase-${phase}`, text });
+    chip.toggleClass('tv-stale', stale);
+  }
   if (ctx.effectiveStatus === 'waiting') {
     tags.createSpan({ cls: 'tv-tag tv-tag-waiting', text: '⏳ 等待中' });
   }
@@ -174,6 +188,20 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
     dates.createSpan({ cls: 'tv-progress', text: `${ctx.child.done}/${ctx.child.count}` });
   }
   return row;
+}
+
+const AGENT_PHASE_LABEL: Record<AgentPhase, string> = {
+  dispatched: '📡 已派发',
+  working: '⚙ 执行中',
+  stuck: '⛔ 卡点',
+  review: '👁 待复核',
+};
+
+function parseLogTime(value: string): Date {
+  const [date, time] = value.split(' ');
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute);
 }
 
 function stripLink(v: string): string {

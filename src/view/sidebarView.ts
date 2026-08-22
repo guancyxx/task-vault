@@ -7,6 +7,7 @@ import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Bucket } from '../time/timeRules';
+import { agentProgress } from '../model/agentProgress';
 import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
 import { openDetailAt } from './detailPopover';
@@ -21,6 +22,7 @@ export const VIEW_TYPE_TASK_VAULT = 'task-vault-view';
 // Section order (user request 2026-08-20): overdue first — what's burning shows on top,
 // before today. Then today, this week, done-today.
 const SECTIONS: Array<{ bucket: Bucket; label: string }> = [
+  { bucket: 'review', label: '待复核' },
   { bucket: 'overdue', label: '过期' },
   { bucket: 'today', label: '今天' },
   { bucket: 'week', label: '本周' },
@@ -153,6 +155,7 @@ export class TaskVaultView extends ItemView {
       actions: this.actions ? this.rowActions(path) : undefined,
       child,
       indent,
+      agentPhase: agentProgress(task, entry.body) ?? undefined,
     });
 
     if (child && !collapsed) {

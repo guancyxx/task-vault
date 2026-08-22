@@ -4,7 +4,7 @@
 
 import { TERMINAL_STATUSES, type Task } from '../model/types';
 
-export type Bucket = 'inbox' | 'today' | 'overdue' | 'week' | 'done';
+export type Bucket = 'review' | 'inbox' | 'today' | 'overdue' | 'week' | 'done';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -54,6 +54,7 @@ function isTerminal(task: Task): boolean {
 // week → today → week. No-date tasks fall to 本周 (inbox bucket removed 2026-08-19).
 export function bucketOf(task: Task, now: Date): Bucket {
   if (isTerminal(task)) return 'done';
+  if (task.status === 'review') return 'review';
   const due = task.due;
   if (!due) return 'week';
 

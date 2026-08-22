@@ -83,6 +83,7 @@
 .tv-status-inbox   { border-left-color: var(--text-faint); }
 .tv-status-todo    { border-left-color: var(--color-accent); }
 .tv-status-doing   { border-left-color: var(--color-blue); }
+.tv-status-review  { border-left-color: var(--color-purple); }
 .tv-status-waiting { border-left-color: var(--color-yellow); }
 .tv-status-blocked { border-left-color: var(--color-red); }
 .tv-status-done    { border-left-color: var(--color-green); }
@@ -158,6 +159,11 @@
 .tv-tag-waiting {
   color: var(--color-yellow);
 }
+.tv-agentphase-dispatched { color: var(--text-muted); }
+.tv-agentphase-working { color: var(--color-green); }
+.tv-agentphase-stuck { color: var(--color-red); }
+.tv-agentphase-review { color: var(--color-purple); }
+.tv-agentphase-working.tv-stale { color: var(--color-yellow); }
 
 /* priority tags p0-p3: escalating weight/color */
 .tv-pri {
@@ -200,6 +206,9 @@
 .tv-status-doing .tv-glyph {
   color: var(--color-blue);
 }
+.tv-status-review .tv-glyph {
+  color: var(--color-purple);
+}
 .tv-status-blocked .tv-glyph {
   color: var(--color-red);
 }
@@ -222,6 +231,13 @@
   background: linear-gradient(
     90deg,
     rgba(var(--color-blue-rgb, 82, 139, 255), 0.08),
+    transparent 55%
+  );
+}
+.tv-status-review {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--color-purple-rgb, 158, 122, 255), 0.08),
     transparent 55%
   );
 }
