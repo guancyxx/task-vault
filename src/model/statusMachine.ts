@@ -1,13 +1,16 @@
-// Seven-state machine + timestamp maintenance (FR-003). Pure functions, no persistence.
+// Eight-state machine + timestamp maintenance (FR-003, FR-030). Pure functions, no persistence.
 
 import type { Actor, Status, Task } from './types';
 
 // Legal transitions (spec Code Style). `blocked` appears in no target list: it is derived
 // from blocked-by (FR-004), never set by hand, so transition() INTO blocked always throws.
+// `review` (FR-030) is the agent delivery gate: doing → review hands the task to the user
+// for confirmation; review only exits to done (approved), doing (rework) or cancelled.
 export const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
   inbox: ['todo', 'cancelled'],
   todo: ['doing', 'cancelled'],
-  doing: ['waiting', 'done', 'cancelled'],
+  doing: ['waiting', 'review', 'done', 'cancelled'],
+  review: ['done', 'doing', 'cancelled'], // gated completion: user confirms from here
   waiting: ['todo', 'doing', 'cancelled'],
   blocked: ['waiting', 'cancelled'], // exits only; entry is derived
   done: [],
