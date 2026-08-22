@@ -2,8 +2,11 @@
 // `## 执行记录` → one of four phases, so the sidebar can show live agent progress without
 // agents writing any extra state. Only applies to delegated tasks (assignee ≠ user).
 //
-// Judgement mirrors dispatch_backstop.py (text-matching「接单」/「卡点」on log entries —
-// the same load-bearing protocol, contract §7); status=review is the FR-030 delivery gate.
+// Judgement shares dispatch_backstop.py's text-matching「接单」/「卡点」protocol (contract §7),
+// but intentionally not its time baseline: todo display accepts ANY historical 接单, while
+// backstop accepted_after requires 接单 timestamp >= max(dispatched, ledger.last_at). Display
+// is broad and dispatch safety is strict; do not "align" these distinct semantics.
+// status=review is the FR-030 delivery gate.
 //
 // Phases:
 //   dispatched — `dispatched` set ∧ no「接单」entry yet (agent has not picked up)

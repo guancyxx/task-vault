@@ -34,6 +34,9 @@ describe('agentProgress (FR-028)', () => {
   it('does not derive working from doing/waiting without an acceptance record', () => {
     expect(agentProgress(task({ status: 'doing' }), log())).toBeNull();
     expect(agentProgress(task({ status: 'waiting' }), log('- 2026-08-19 11:00 · `cc`', '  调研中'))).toBeNull();
+    expect(agentProgress(task({ status: 'waiting', dispatched: '2026-08-19T10:00' }), log())).toEqual({
+      phase: 'dispatched',
+    });
   });
 
   it('falls back to dispatched when doing has no acceptance record', () => {
