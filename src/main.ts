@@ -40,7 +40,7 @@ export default class TaskVaultPlugin extends Plugin {
     });
 
     const source = new VaultSource(this.app);
-    this.store = new TaskStore(source, source);
+    this.store = new TaskStore(source, source, () => new Date(), source);
     this.actions = new TaskActions(this.app, this.store, source, hooks);
 
     const onCapture = async (text: string, now: Date): Promise<void> => {

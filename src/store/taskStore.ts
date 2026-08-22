@@ -13,6 +13,7 @@ import { agentProgress } from '../model/agentProgress';
 import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
 import { bucketOf, completedToday, type Bucket } from '../time/timeRules';
 import { parseTaskFile } from '../util/frontmatter';
+import { shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
 
 export interface Entry {
   path: string;
@@ -56,6 +57,7 @@ export class TaskStore {
     private reader: VaultReader,
     private writer: LogWriter = noopWriter,
     private now: () => Date = () => new Date(),
+    private reviewGate?: ReviewGateWriter,
   ) {}
 
   onChange(cb: () => void): () => void {
@@ -76,7 +78,17 @@ export class TaskStore {
   }
 
   async upsert(path: string): Promise<void> {
+    const previous = this.byPath.get(path);
     await this.load(path);
+    const fresh = this.byPath.get(path);
+    if (
+      previous &&
+      fresh &&
+      shouldGuardExternalDone(previous.task.status, fresh.task, fresh.body) &&
+      (await this.reviewGate?.enforceReviewGate(path, previous.task.status, this.now()))
+    ) {
+      await this.load(path);
+    }
     await this.reconcileBlocked();
     this.emit();
   }

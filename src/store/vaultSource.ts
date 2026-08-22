@@ -5,11 +5,13 @@
 import { TFile, type App, type EventRef, type TAbstractFile } from 'obsidian';
 import type { EntryInput } from '../log/executionLog';
 import { recordEntry } from '../log/executionLog';
-import { serializeTaskFile, upsertSection } from '../util/frontmatter';
+import { parseTaskFile, serializeTaskFile, upsertSection } from '../util/frontmatter';
+import type { Status } from '../model/types';
 import { captureToTask, slugify, type Capture } from '../view/captureParse';
 import { isLibraryPath, taskDir, taskPath as computeTaskPath } from './taskPaths';
 import type { SectionWriter } from './taskActions';
 import type { LogWriter, TaskStore, VaultReader } from './taskStore';
+import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
 
 export const TASKS_DIR = '03 Tasks/';
 const DEBOUNCE_MS = 200;
@@ -20,7 +22,7 @@ export function isTaskPath(path: string): boolean {
   return isLibraryPath(path);
 }
 
-export class VaultSource implements VaultReader, LogWriter, SectionWriter {
+export class VaultSource implements VaultReader, LogWriter, SectionWriter, ReviewGateWriter {
   constructor(private app: App) {}
 
   async listTaskFiles(): Promise<string[]> {
@@ -42,6 +44,27 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter {
       const body = fence ? data.slice(fence[0].length) : data;
       return prefix + recordEntry(body, entry);
     });
+  }
+
+  async enforceReviewGate(path: string, previous: Status, now: Date): Promise<boolean> {
+    const file = this.mustFile(path);
+    let claimed = false;
+    // Claim against the latest full body first. A concurrent user confirmation makes the
+    // predicate false and leaves the file untouched; the marker also makes retries idempotent.
+    await this.app.vault.process(file, (latest) => {
+      const current = parseTaskFile(latest, path);
+      if (!current.ok || !shouldGuardExternalDone(previous, current.task, current.body)) return latest;
+      const fence = /^---\n[\s\S]*?\n---\n?/.exec(latest);
+      claimed = true;
+      return (fence?.[0] ?? '') + applyReviewGate(current.task, current.body, now).body;
+    });
+    if (!claimed) return false;
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      if (frontmatter.status !== 'done') return;
+      frontmatter.status = 'review';
+      delete frontmatter.completed;
+    });
+    return true;
   }
 
   // Body-only section replace (used for the `## 委派` block, FR-015). Frontmatter kept verbatim.
