@@ -109,7 +109,7 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区最前面�
 - **`dispatched` 必须存在（显式 #auto 除外）**（2026-08-19 修正）：普通任务只有 assignee 仍不算派发，避免把默认归属误判为委派；#auto 是自动首派并写入 dispatched 的唯一例外。
 - **取 `last_at` 与 `dispatched` 的较晚者**：补派不写 `dispatched`（禁令），只看 `dispatched` 会让补派每 tick 重复触发。
 - 上限：每任务 `count >= 3` 停手，单轮最多派 3 个（`dispatch_backstop.py` 的 `MAX_ATTEMPTS` / `MAX_PER_RUN`）。人工重试走 `--force <任务文件>`。
-- `dispatch_backstop.py` 用 vault 根 `.tv-dispatch.lock` 将最终重读与完整资格重判、ledger attempt 占位、#auto `dispatched` 写入、hook 调用包在同一排他区；attempt 在 hook 前递增，hook 失败不回退。
+- `dispatch_backstop.py` 用 `.taskvault/dispatch.lock` 将最终重读与完整资格重判、ledger attempt 占位、#auto `dispatched` 写入、hook 调用包在同一排他区；attempt 在 hook 前递增，hook 失败不回退。
 
 ## 10. review 硬门禁（FR-030）
 
