@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { TaskStore, type LogWriter, type VaultReader } from '../src/store/taskStore';
+import { groupSortKey, TaskStore, type Entry, type LogWriter, type VaultReader } from '../src/store/taskStore';
 import { serializeTaskFile } from '../src/util/frontmatter';
 import type { EntryInput } from '../src/log/executionLog';
 import type { Status, Task } from '../src/model/types';
@@ -54,7 +54,7 @@ describe('scan + index (FR-007)', () => {
     const g = store.bucketed(NOW);
     expect(g.today.map((e) => e.task.id)).toEqual(['a']);
     expect(g.overdue.map((e) => e.task.id)).toEqual(['b']);
-    expect(g.week.map((e) => e.task.id)).toEqual(['c', 'e']);
+    expect(g.week.map((e) => e.task.id)).toEqual(['e', 'c']);
     expect(g.done.map((e) => e.task.id)).toEqual(['d']);
   });
 });
@@ -150,5 +150,27 @@ describe('incremental update + change notification', () => {
     await store.remove('03 Tasks/a.md');
     expect(store.allEntries()).toHaveLength(0);
     expect(fired).toBe(2);
+  });
+});
+
+describe('groupSortKey execution ordering (FR-028/030)', () => {
+  function entry(id: string, status: Status, body = '', extra: Partial<Task> = {}): Entry {
+    return {
+      path: `03 Tasks/${id}.md`,
+      task: { id, title: id, status, created: '2026-08-19T09:00', project: 'same', ...extra },
+      body,
+    };
+  }
+
+  it('sorts review before doing within the same project', () => {
+    const review = entry('review', 'review');
+    const doing = entry('doing', 'doing');
+    expect([doing, review].sort(groupSortKey).map((e) => e.task.id)).toEqual(['review', 'doing']);
+  });
+
+  it('sorts a stuck agent task before todo within the same project', () => {
+    const stuck = entry('stuck', 'doing', '## 执行记录\n- 2026-08-19 12:00 · **卡点** · `cc`\n  卡点：等待权限\n', { assignee: 'cc' });
+    const todo = entry('todo', 'todo');
+    expect([todo, stuck].sort(groupSortKey).map((e) => e.task.id)).toEqual(['stuck', 'todo']);
   });
 });

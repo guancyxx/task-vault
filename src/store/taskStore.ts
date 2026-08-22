@@ -222,7 +222,7 @@ function mkEdge(ts: Date, from: Status, to: Status, text: string): EntryInput {
 // Project→status/agent phase→priority→due ordering: tasks cluster by project folder
 // name (project field, repo/* tag, else _未分类 — mirrors taskPaths.projectFolder but stays
 // dependency-free here), then p0 before p3, then earliest due first.
-function groupSortKey(a: Entry, b: Entry): number {
+export function groupSortKey(a: Entry, b: Entry): number {
   const pa = a.task.project ?? (a.task.tags ?? []).find((t) => t.startsWith('repo/'))?.slice(5) ?? '~';
   const pb = b.task.project ?? (b.task.tags ?? []).find((t) => t.startsWith('repo/'))?.slice(5) ?? '~';
   if (pa !== pb) return pa.localeCompare(pb, 'zh');

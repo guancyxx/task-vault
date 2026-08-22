@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STATUSES, type Status, type Task } from '../src/model/types';
+import { STATUSES, TERMINAL_STATUSES, type Status, type Task } from '../src/model/types';
 import { TRANSITIONS, completeTransition, legalPathToDone, transition } from '../src/model/statusMachine';
 
 const NOW = new Date(2026, 7, 19, 14, 32); // local 2026-08-19 14:32
@@ -20,7 +20,8 @@ describe('TRANSITIONS table (FR-003)', () => {
     expect(TRANSITIONS).toEqual({
       inbox: ['todo', 'cancelled'],
       todo: ['doing', 'cancelled'],
-      doing: ['waiting', 'done', 'cancelled'],
+      doing: ['waiting', 'review', 'done', 'cancelled'],
+      review: ['done', 'doing', 'cancelled'],
       waiting: ['todo', 'doing', 'cancelled'],
       blocked: ['waiting', 'cancelled'],
       done: [],
@@ -33,6 +34,13 @@ describe('TRANSITIONS table (FR-003)', () => {
       expect(targets).not.toContain('blocked');
     }
   });
+});
+
+describe('review gate (FR-030)', () => {
+  it('allows doing -> review', () => expect(() => transition(baseTask('doing'), 'review', 'cc', NOW)).not.toThrow());
+  it('allows review -> done', () => expect(() => transition(baseTask('review'), 'done', 'user', NOW)).not.toThrow());
+  it('rejects todo -> review', () => expect(() => transition(baseTask('todo'), 'review', 'cc', NOW)).toThrow());
+  it('keeps review non-terminal', () => expect(TERMINAL_STATUSES).not.toContain('review'));
 });
 
 describe('transition() full 7x7 matrix (FR-003)', () => {
