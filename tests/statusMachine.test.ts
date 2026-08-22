@@ -37,8 +37,11 @@ describe('TRANSITIONS table (FR-003)', () => {
 });
 
 describe('review gate (FR-030)', () => {
-  it('allows doing -> review', () => expect(() => transition(baseTask('doing'), 'review', 'cc', NOW)).not.toThrow());
-  it('allows review -> done', () => expect(() => transition(baseTask('review'), 'done', 'user', NOW)).not.toThrow());
+  it('rejects cc doing -> done', () => expect(() => transition(baseTask('doing'), 'done', 'cc', NOW)).toThrow());
+  it('allows cc doing -> review', () => expect(() => transition(baseTask('doing'), 'review', 'cc', NOW)).not.toThrow());
+  it('allows user doing -> done', () => expect(() => transition(baseTask('doing'), 'done', 'user', NOW)).not.toThrow());
+  it('allows user review -> done', () => expect(() => transition(baseTask('review'), 'done', 'user', NOW)).not.toThrow());
+  it('rejects cc review -> done', () => expect(() => transition(baseTask('review'), 'done', 'cc', NOW)).toThrow());
   it('rejects todo -> review', () => expect(() => transition(baseTask('todo'), 'review', 'cc', NOW)).toThrow());
   it('keeps review non-terminal', () => expect(TERMINAL_STATUSES).not.toContain('review'));
 });
@@ -143,11 +146,15 @@ describe('completeTransition (FR-013)', () => {
     expect(res.record).toMatchObject({ from: 'todo', to: 'done', actor: 'user' });
   });
 
-  it('doing → keeps existing started, records completed', () => {
-    const res = completeTransition(baseTask('doing', { started: '2026-08-19T10:00' }), 'cc', NOW)!;
+  it('user doing → keeps existing started, records completed', () => {
+    const res = completeTransition(baseTask('doing', { started: '2026-08-19T10:00' }), 'user', NOW)!;
     expect(res.patch.status).toBe('done');
     expect(res.patch.completed).toBe(NOW_ISO);
     expect(res.record.from).toBe('doing');
+  });
+
+  it('agent cannot checkbox-complete directly to done', () => {
+    expect(() => completeTransition(baseTask('doing'), 'cc', NOW)).toThrow();
   });
 
   it('already done → null', () => {

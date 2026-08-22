@@ -223,6 +223,8 @@ def _record_transition(body: str, old: str, new: str, timestamp: datetime) -> st
 
 
 def _complete_task_from_reminder(task: TaskFile, timestamp: datetime, dry_run: bool) -> bool:
+    # A checked Apple Reminder is an explicit user-confirmation channel (FR-030).
+    # This standalone synchronizer intentionally bypasses the TS agent state machine.
     if task.metadata.get("status") in TERMINAL_STATUSES:
         return False
     if dry_run:

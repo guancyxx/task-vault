@@ -135,7 +135,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - FR-027 记一条执行记录：命令面板/热键入口，对编辑器当前打开的任务文件唤出快速填入框（类型+一行文本），走 appendQuick canonical 通道落盘——侧边栏行外（编辑器中的任务文档）也有合规写入入口，免手写固定格式
 - FR-028 agent 执行态推导与侧边栏徽章：dispatched/working/stuck/review 四相，接单/卡点文本判定与 backstop 同源
 - FR-029 #auto 自动领取：backstop 判据扩展，#auto+todo+assignee≠user 无 dispatched 也派发
-- FR-030 review 复核状态：第八态 doing→review→done/doing/cancelled；agent 收尾门禁：#auto 与委派任务只能到 review，用户确认后 done
+- FR-030 review 复核状态：第八态 doing→review→done/doing/cancelled；状态机硬门禁按 actor 执行：hermes/cc/codex 任何状态均不得直达 done，只能 X→review；仅 actor=user（含插件本地 UI 与 Reminders 勾选确认通道）可 doing/review→done
 
 留痕与 hook：
 - FR-018 执行记录协议：`- <时间戳> [<执行者>] ([类型]) <内容>` 追加式，四类条目（进展/决策/评论/卡点）+ `[from→to]` 迁移记录

@@ -32,6 +32,7 @@ export interface TransitionResult {
 }
 
 const TERMINAL: readonly Status[] = ['done', 'cancelled'];
+const AGENT_ACTORS: readonly Actor[] = ['hermes', 'cc', 'codex'];
 
 function localIsoMinute(d: Date): string {
   const p = (n: number): string => String(n).padStart(2, '0');
@@ -80,6 +81,11 @@ export function completeTransition(task: Task, actor: Actor, now: Date): Transit
 
 export function transition(task: Task, to: Status, actor: Actor, now: Date): TransitionResult {
   const from = task.status;
+  // FR-030 hard gate: agents deliver into review; only an explicit user channel may
+  // confirm any task as done. This also gates completeTransition(), which folds via here.
+  if (to === 'done' && AGENT_ACTORS.includes(actor)) {
+    throw new Error(`Illegal transition for agent actor ${actor}: ${from} -> done (use review)`);
+  }
   if (!isLegalTransition(from, to)) {
     throw new Error(`Illegal transition: ${from} -> ${to}`);
   }
