@@ -83,7 +83,7 @@
 .tv-status-inbox   { border-left-color: var(--text-faint); }
 .tv-status-todo    { border-left-color: var(--color-accent); }
 .tv-status-doing   { border-left-color: var(--color-blue); }
-.tv-status-review  { border-left-color: rgba(var(--color-purple-rgb, 158, 122, 255), 1); }
+.tv-status-review  { border-left-color: var(--color-purple, #9e7aff); }
 .tv-status-waiting { border-left-color: var(--color-yellow); }
 .tv-status-blocked { border-left-color: var(--color-red); }
 .tv-status-done    { border-left-color: var(--color-green); }
@@ -154,7 +154,7 @@
   color: var(--color-accent);
 }
 .tv-tag-area {
-  color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+  color: var(--color-purple, #9e7aff);
 }
 .tv-tag-waiting {
   color: var(--color-yellow);
@@ -162,7 +162,7 @@
 .tv-agentphase-dispatched { color: var(--text-muted); }
 .tv-agentphase-working { color: var(--color-green); }
 .tv-agentphase-stuck { color: var(--color-red); }
-.tv-agentphase-review { color: rgba(var(--color-purple-rgb, 158, 122, 255), 1); }
+.tv-agentphase-review { color: var(--color-purple, #9e7aff); }
 .tv-agentphase-working.tv-stale { color: var(--color-yellow); }
 
 /* priority tags p0-p3: escalating weight/color */
@@ -207,7 +207,7 @@
   color: var(--color-blue);
 }
 .tv-status-review .tv-glyph {
-  color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+  color: var(--color-purple, #9e7aff);
 }
 .tv-status-blocked .tv-glyph {
   color: var(--color-red);
@@ -244,7 +244,7 @@
 
 /* delegation marker */
 .tv-delegate {
-  color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+  color: var(--color-purple, #9e7aff);
   font-size: 0.8em;
   font-weight: 600;
   cursor: help;
