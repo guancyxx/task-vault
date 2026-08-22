@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { TaskStore, type LogWriter, type VaultReader } from '../src/store/taskStore';
+import { groupSortKey, TaskStore, type Entry, type LogWriter, type VaultReader } from '../src/store/taskStore';
 import { serializeTaskFile } from '../src/util/frontmatter';
 import type { EntryInput } from '../src/log/executionLog';
 import type { Status, Task } from '../src/model/types';
+import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from '../src/store/reviewGate';
+import { parseTaskFile } from '../src/util/frontmatter';
 
 const NOW = new Date(2026, 7, 19, 14, 32); // local 2026-08-19 14:32 (Wed)
 
@@ -14,7 +16,7 @@ function file(t: Partial<Task> & { id: string; status?: Status }): string {
 }
 
 // In-memory vault: path → raw file contents. Mutate then call the store's incremental hooks.
-class MemVault implements VaultReader, LogWriter {
+class MemVault implements VaultReader, LogWriter, ReviewGateWriter {
   files = new Map<string, string>();
   logCalls: Array<{ path: string; entry: EntryInput }> = [];
   set(path: string, raw: string): void {
@@ -31,6 +33,13 @@ class MemVault implements VaultReader, LogWriter {
   async appendLog(path: string, entry: EntryInput): Promise<void> {
     this.logCalls.push({ path, entry });
   }
+  async enforceReviewGate(path: string, previous: Status, now: Date): Promise<boolean> {
+    const parsed = parseTaskFile(await this.read(path), path);
+    if (!parsed.ok || !shouldGuardExternalDone(previous, parsed.task, parsed.body)) return false;
+    const guarded = applyReviewGate(parsed.task, parsed.body, now);
+    this.set(path, serializeTaskFile(guarded.task, guarded.body));
+    return true;
+  }
 }
 
 let vault: MemVault;
@@ -38,7 +47,7 @@ let store: TaskStore;
 
 beforeEach(() => {
   vault = new MemVault();
-  store = new TaskStore(vault, vault, () => NOW);
+  store = new TaskStore(vault, vault, () => NOW, vault);
 });
 
 describe('scan + index (FR-007)', () => {
@@ -54,7 +63,7 @@ describe('scan + index (FR-007)', () => {
     const g = store.bucketed(NOW);
     expect(g.today.map((e) => e.task.id)).toEqual(['a']);
     expect(g.overdue.map((e) => e.task.id)).toEqual(['b']);
-    expect(g.week.map((e) => e.task.id)).toEqual(['c', 'e']);
+    expect(g.week.map((e) => e.task.id)).toEqual(['e', 'c']);
     expect(g.done.map((e) => e.task.id)).toEqual(['d']);
   });
 });
@@ -96,7 +105,7 @@ describe('blocked derivation (FR-004)', () => {
     expect(store.isBlocked('a')).toBe(true);
 
     // B completes → A releases back to its stored status (doing → doing).
-    vault.set('03 Tasks/b.md', file({ id: 'b', status: 'done', due: '2026-08-01' }));
+    vault.set('03 Tasks/b.md', file({ id: 'b', status: 'done', due: '2026-08-01', assignee: 'user' }));
     await store.upsert('03 Tasks/b.md');
 
     expect(store.isBlocked('a')).toBe(false);
@@ -151,4 +160,69 @@ describe('incremental update + change notification', () => {
     expect(store.allEntries()).toHaveLength(0);
     expect(fired).toBe(2);
   });
+});
+
+describe('external done review gate (FR-030)', () => {
+  const path = '03 Tasks/gated.md';
+  const delegated = (status: Status, body = '', extra: Partial<Task> = {}): string =>
+    serializeTaskFile(
+      { id: 'gated', title: 'gated', status, created: '2026-08-19T09:00', assignee: 'cc', ...extra },
+      body,
+    );
+
+  async function baselineThenDone(body = '', extra: Partial<Task> = {}): Promise<void> {
+    vault.set(path, delegated('doing'));
+    await store.scan();
+    vault.set(path, delegated('done', body, { completed: '2026-08-19T14:30', ...extra }));
+    await store.upsert(path);
+  }
+
+  it('rewrites an unconfirmed external done to review and clears completed', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · **doing→done** · `cc`\n  完成\n');
+    const entry = store.entryByPath(path)!;
+    expect(entry.task.status).toBe('review');
+    expect(entry.task.completed).toBeUndefined();
+    expect(entry.body).toContain('**done→review** · `hermes`');
+    expect(entry.body).toContain('复核门禁');
+  });
+
+  it('allows a Reminders completion marker', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · `user`\n  Reminders 里勾了完成\n');
+    expect(store.entryByPath(path)!.task.status).toBe('done');
+  });
+
+  it('allows a user-authored done transition', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · **doing→done** · `user`\n  确认完成\n');
+    expect(store.entryByPath(path)!.task.status).toBe('done');
+  });
+
+  it('does not duplicate intervention on a repeated event', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · **doing→done** · `cc`\n  完成\n');
+    await store.upsert(path);
+    const matches = store.entryByPath(path)!.body.match(/复核门禁/g) ?? [];
+    expect(matches).toHaveLength(1);
+  });
+});
+
+describe('groupSortKey execution ordering (FR-028/030)', () => {
+  function entry(id: string, status: Status, body = '', extra: Partial<Task> = {}): Entry {
+    return {
+      path: `03 Tasks/${id}.md`,
+      task: { id, title: id, status, created: '2026-08-19T09:00', project: 'same', ...extra },
+      body,
+    };
+  }
+
+  it('sorts review before doing within the same project', () => {
+    const review = entry('review', 'review');
+    const doing = entry('doing', 'doing');
+    expect([doing, review].sort(groupSortKey).map((e) => e.task.id)).toEqual(['review', 'doing']);
+  });
+
+  it('sorts a stuck agent task before todo within the same project', () => {
+    const stuck = entry('stuck', 'doing', '## 执行记录\n- 2026-08-19 12:00 · **卡点** · `cc`\n  卡点：等待权限\n', { assignee: 'cc' });
+    const todo = entry('todo', 'todo');
+    expect([todo, stuck].sort(groupSortKey).map((e) => e.task.id)).toEqual(['stuck', 'todo']);
+  });
+
 });

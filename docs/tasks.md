@@ -3,7 +3,7 @@
 > 依据 docs/spec.md（FR-###/SC-### 见彼处）。实现按 Phase 顺序推进，每个 Checkpoint 停下来验证。
 > 约定：每任务 TDD（先写失败测试）；提交前 `npm test && npm run typecheck` 必须绿；commit message 带 Traces-to。
 
-**Goal:** 单人单机 Obsidian 任务插件：每任务一文件 + UUID 身份 + 七态状态机 + DDL 时间控制 + 侧边栏驾驶舱 + 执行留痕 + hook 体系 + Reminders 同步重写 + 存量迁移。
+**Goal:** 单人单机 Obsidian 任务插件：每任务一文件 + UUID 身份 + 八态状态机（含 review 门禁）+ DDL 时间控制 + 侧边栏驾驶舱 + 执行留痕 + hook 体系 + Reminders 同步重写 + 存量迁移。
 
 **Architecture:** 核心域纯函数零依赖（model/time/log/hooks），obsidian API 只进 store/view/main 适配层；进程外 Python 同步器经 `vault/.taskvault/` 与插件共享 ledger；任务文件即数据库。
 
@@ -30,12 +30,12 @@
 
 ### Task 2: 数据模型与状态机
 
-**Objective:** Task 类型 schema 常量 + 七态转移表 + 时间戳维护纯函数。
+**Objective:** Task 类型 schema 常量 + 八态转移表 + actor 感知的 review 硬门禁 + 时间戳维护纯函数。
 **Files:**
 - Create: `src/model/types.ts`, `src/model/statusMachine.ts`
 - Test: `tests/statusMachine.test.ts`
 **Steps:**
-1. 失败测试：全转移表逐条合法转移（inbox→todo/cancelled、doing→waiting/done/cancelled、cancelled→todo 重开…）+ 非法转移抛错（done→任何、inbox→done 跳态）+ 时间戳维护（todo→doing 记 started；→done/cancelled 记 completed；重开清 completed）
+1. 失败测试：全转移表逐条合法转移（inbox→todo/cancelled、doing→waiting/review/done/cancelled、review→done/doing/cancelled、cancelled→todo 重开…）+ actor 门禁（agent→done 拒绝、agent→review 允许、user→done 允许）+ 非法转移抛错 + 时间戳维护（todo→doing 记 started；→done/cancelled 记 completed；重开清 completed）
 2. 实现 `TRANSITIONS` 表 + `transition(task, to, actor, now): TransitionResult`（返回字段补丁+迁移记录行，不落盘）
 3. FR 注释标注每条约束
 **Verify:** vitest 全绿，覆盖全部 7×7 组合。

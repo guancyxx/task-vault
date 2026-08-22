@@ -4,6 +4,7 @@ export type Status =
   | 'inbox'
   | 'todo'
   | 'doing'
+  | 'review'
   | 'waiting'
   | 'blocked'
   | 'done'
@@ -14,6 +15,7 @@ export const STATUSES: readonly Status[] = [
   'inbox',
   'todo',
   'doing',
+  'review',
   'waiting',
   'blocked',
   'done',

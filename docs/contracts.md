@@ -87,7 +87,7 @@ mirror:
   内容
 ```
 
-actor ∈ hermes|cc|codex|user。只追加到 `## 执行记录` 区末尾；无区则建区（含标题）。
+actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区最前面（倒序：最新在上）；无区则建区（含标题）。已有条目永不改写。
 
 - `- YYYY-MM-DD HH:MM ` 这个前缀是承重的：dispatch_backstop 的 LOG_ENTRY 按它认条目边界，
   换格式前先改那条正则。续行归属上一条表头，所以「接单」写在正文行里也算数。
@@ -104,8 +104,14 @@ actor ∈ hermes|cc|codex|user。只追加到 `## 执行记录` 区末尾；无�
 
 ## 9. 兜底派发 cron 判据
 
-`dispatched` 存在 ∧ `assignee ∉ {空, user}` ∧ `status = todo` ∧ `now - max(dispatched, ledger.dispatch.<id>.last_at) > backstop_minutes` ∧ 执行记录里该时刻之后无 `接单` 记录 → 补派。阈值读 config.json。
+(`dispatched` 存在 ∨ (`tags` 含 `auto` ∧ `assignee ≠ user` ∧ `status = todo`)) ∧ `assignee ∉ {空, user}` ∧ `status = todo` ∧（有派发时）`now - max(dispatched, ledger.dispatch.<id>.last_at) > backstop_minutes` ∧ 执行记录里基准时刻之后无 `接单` 记录 → 补派；#auto 首派先写 `dispatched=now`。阈值读 config.json。
 
-- **`dispatched` 必须存在**（2026-08-19 修正）：初版写的是「无 `dispatched` 或超时」，前提是 assignee 只由委派写入。实际 vault 里 `assignee: hermes` 是任务创建时的默认归属（12 个任务如此、全无 `## 委派` 区），按初版判据会把「有主人」当成「派过了没人接」，一次拉起 12 个 agent。
+- **`dispatched` 必须存在（显式 #auto 除外）**（2026-08-19 修正）：普通任务只有 assignee 仍不算派发，避免把默认归属误判为委派；#auto 是自动首派并写入 dispatched 的唯一例外。
 - **取 `last_at` 与 `dispatched` 的较晚者**：补派不写 `dispatched`（禁令），只看 `dispatched` 会让补派每 tick 重复触发。
 - 上限：每任务 `count >= 3` 停手，单轮最多派 3 个（`dispatch_backstop.py` 的 `MAX_ATTEMPTS` / `MAX_PER_RUN`）。人工重试走 `--force <任务文件>`。
+- `dispatch_backstop.py` 用 `.taskvault/dispatch.lock` 将最终重读与完整资格重判、ledger attempt 占位、#auto `dispatched` 写入、hook 调用包在同一排他区；attempt 在 hook 前递增，hook 失败不回退。
+
+## 10. review 硬门禁（FR-030）
+
+- `actor ∈ {hermes, cc, codex}` 时，状态机拒绝任何 `X → done`；agent 收尾只能写 `X → review`。
+- `review → done` 仅 `actor=user` 允许。插件本地 UI 默认以 user 身份调用；Reminders 勾选完成是独立的用户确认通道，可由同步器直接写 done。

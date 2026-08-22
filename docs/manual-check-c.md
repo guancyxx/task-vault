@@ -6,10 +6,10 @@ UI cannot be automated (obsidian eval only). Run these on a real vault after
 > Verify DOM with `obsidian eval` (query real nodes/metadata — do not trust the
 > plugin's own logs), per AGENTS.md 测试.
 
-## Task 8 — sidebar cockpit (五分区 + 实时刷新)
+## Task 8 — sidebar cockpit (六分区 + 实时刷新)
 
 1. Command palette → **Task Vault: Open** → a right-sidebar leaf opens titled "Task Vault".
-2. Five section headers render in order: **收件箱 / 今天 / 过期 / 本周 / 已完成**, each with a count.
+2. Six section headers render in order: **待复核 / 收件箱 / 今天 / 过期 / 本周 / 已完成**, each with a count.
 3. A task file with `due:` = today lands in **今天**; one with a past `due` lands in **过期**
    (red, bold badge); no `due` → **收件箱**; `done`/`cancelled` → **已完成** (folded by default).
 4. A `datetime` due within 24h shows a **countdown badge** `剩 XhYm`; an overdue one shows
@@ -17,6 +17,7 @@ UI cannot be automated (obsidian eval only). Run these on a real vault after
 5. A task whose `blocked-by` points at a non-terminal task renders **grayed** with a
    `被阻塞` marker; hover shows `阻塞源：<titles>`.
 6. A `waiting` task shows the amber ⏳ glyph.
+   A `review` task appears in **待复核** with the purple review glyph.
 7. Edit a task file's `due` to today in the editor → within ~3s (200ms debounce) the row
    **moves** to 今天 without a manual refresh.
 8. Set a dependency task to `done` → the dependent's row **un-grays** and a

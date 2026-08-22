@@ -9,9 +9,11 @@
 // so a restart with still-open deps does not re-log.
 
 import type { EntryInput } from '../log/executionLog';
+import { agentProgress } from '../model/agentProgress';
 import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
 import { bucketOf, completedToday, type Bucket } from '../time/timeRules';
 import { parseTaskFile } from '../util/frontmatter';
+import { shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
 
 export interface Entry {
   path: string;
@@ -55,6 +57,7 @@ export class TaskStore {
     private reader: VaultReader,
     private writer: LogWriter = noopWriter,
     private now: () => Date = () => new Date(),
+    private reviewGate?: ReviewGateWriter,
   ) {}
 
   onChange(cb: () => void): () => void {
@@ -75,7 +78,17 @@ export class TaskStore {
   }
 
   async upsert(path: string): Promise<void> {
+    const previous = this.byPath.get(path);
     await this.load(path);
+    const fresh = this.byPath.get(path);
+    if (
+      previous &&
+      fresh &&
+      shouldGuardExternalDone(previous.task.status, fresh.task, fresh.body) &&
+      (await this.reviewGate?.enforceReviewGate(path, previous.task.status, this.now()))
+    ) {
+      await this.load(path);
+    }
     await this.reconcileBlocked();
     this.emit();
   }
@@ -196,14 +209,15 @@ export class TaskStore {
   }
 
   bucketed(now: Date): BucketedView {
-    const view: BucketedView = { inbox: [], today: [], overdue: [], week: [], done: [] };
+    const view: BucketedView = { review: [], inbox: [], today: [], overdue: [], week: [], done: [] };
     for (const e of this.byPath.values()) {
       const b = bucketOf(e.task, now);
       if (b === 'done' && !completedToday(e.task, now)) continue; // 今日完成 only
       view[b].push(e);
     }
-    // User request 2026-08-19: group-sort by project, then priority, then due.
-    for (const k of Object.keys(view) as Bucket[]) view[k].sort(groupSortKey);
+    // Active buckets: project, execution state, priority, due. The done bucket keeps its
+    // original chronological ordering; status/agent phase no longer matters once terminal.
+    for (const k of Object.keys(view) as Bucket[]) view[k].sort(k === 'done' ? sortKey : groupSortKey);
     return view;
   }
 
@@ -217,18 +231,36 @@ function mkEdge(ts: Date, from: Status, to: Status, text: string): EntryInput {
   return { ts, actor: AUTO_ACTOR, from, to, text };
 }
 
-// Project→priority→due ordering (user request 2026-08-19): tasks cluster by project folder
+// Project→status/agent phase→priority→due ordering: tasks cluster by project folder
 // name (project field, repo/* tag, else _未分类 — mirrors taskPaths.projectFolder but stays
 // dependency-free here), then p0 before p3, then earliest due first.
-function groupSortKey(a: Entry, b: Entry): number {
+export function groupSortKey(a: Entry, b: Entry): number {
   const pa = a.task.project ?? (a.task.tags ?? []).find((t) => t.startsWith('repo/'))?.slice(5) ?? '~';
   const pb = b.task.project ?? (b.task.tags ?? []).find((t) => t.startsWith('repo/'))?.slice(5) ?? '~';
   if (pa !== pb) return pa.localeCompare(pb, 'zh');
+  const sa = statusWeight(a);
+  const sb = statusWeight(b);
+  if (sa !== sb) return sa - sb;
   const wa = PRIORITY_WEIGHT[a.task.priority ?? 'none'] ?? 9;
   const wb = PRIORITY_WEIGHT[b.task.priority ?? 'none'] ?? 9;
   if (wa !== wb) return wa - wb;
   return sortKey(a, b);
 }
+
+export function statusWeight(entry: Entry): number {
+  const phase = agentProgress(entry.task, entry.body)?.phase;
+  if (phase === 'stuck') return 2.5;
+  if (phase === 'dispatched') return 3;
+  return STATUS_WEIGHT[entry.task.status] ?? 6;
+}
+
+const STATUS_WEIGHT: Partial<Record<Status, number>> = {
+  review: 0,
+  doing: 1,
+  waiting: 2,
+  todo: 4,
+  inbox: 5,
+};
 
 const PRIORITY_WEIGHT: Record<string, number> = { high: 0, normal: 1, low: 2, none: 3 };
 

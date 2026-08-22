@@ -1,13 +1,16 @@
-// Seven-state machine + timestamp maintenance (FR-003). Pure functions, no persistence.
+// Eight-state machine + timestamp maintenance (FR-003, FR-030). Pure functions, no persistence.
 
 import type { Actor, Status, Task } from './types';
 
 // Legal transitions (spec Code Style). `blocked` appears in no target list: it is derived
 // from blocked-by (FR-004), never set by hand, so transition() INTO blocked always throws.
+// `review` (FR-030) is the agent delivery gate: doing → review hands the task to the user
+// for confirmation; review only exits to done (approved), doing (rework) or cancelled.
 export const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
   inbox: ['todo', 'cancelled'],
   todo: ['doing', 'cancelled'],
-  doing: ['waiting', 'done', 'cancelled'],
+  doing: ['waiting', 'review', 'done', 'cancelled'],
+  review: ['done', 'doing', 'cancelled'], // gated completion: user confirms from here
   waiting: ['todo', 'doing', 'cancelled'],
   blocked: ['waiting', 'cancelled'], // exits only; entry is derived
   done: [],
@@ -29,6 +32,7 @@ export interface TransitionResult {
 }
 
 const TERMINAL: readonly Status[] = ['done', 'cancelled'];
+const AGENT_ACTORS: readonly Actor[] = ['hermes', 'cc', 'codex'];
 
 function localIsoMinute(d: Date): string {
   const p = (n: number): string => String(n).padStart(2, '0');
@@ -77,6 +81,11 @@ export function completeTransition(task: Task, actor: Actor, now: Date): Transit
 
 export function transition(task: Task, to: Status, actor: Actor, now: Date): TransitionResult {
   const from = task.status;
+  // FR-030 hard gate: agents deliver into review; only an explicit user channel may
+  // confirm any task as done. This also gates completeTransition(), which folds via here.
+  if (to === 'done' && AGENT_ACTORS.includes(actor)) {
+    throw new Error(`Illegal transition for agent actor ${actor}: ${from} -> done (use review)`);
+  }
   if (!isLegalTransition(from, to)) {
     throw new Error(`Illegal transition: ${from} -> ${to}`);
   }

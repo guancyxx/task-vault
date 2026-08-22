@@ -105,6 +105,33 @@ class RemindersSyncTest(unittest.TestCase):
         self.assertEqual([call[0] for call in calls if call[0] != "show"], ["edit"])
         self.assertNotIn("add", [call[0] for call in calls])
 
+    def test_review_with_uncompleted_reminder_stays_review(self):
+        reminder_id = "13131313-3434-5656-7878-909090909090"
+        task_path = self.tasks / "2026-08-19-review.md"
+        task(task_path, str(uuid.uuid4()), "Needs review", "review", "2026-08-20", reminder_id)
+        self.state.write_text(json.dumps({"reminders": [{
+            "id": reminder_id, "title": "Needs review", "notes": "", "dueDate": "2026-08-20T01:00:00Z",
+            "isAllDay": True, "isCompleted": False, "list": "待办"
+        }], "calls": []}), encoding="utf-8")
+        self.run_sync()
+        metadata, _ = read_frontmatter(task_path)
+        self.assertEqual(metadata["status"], "review")
+        calls = json.loads(self.state.read_text(encoding="utf-8"))["calls"]
+        self.assertNotIn("complete", [call[0] for call in calls])
+
+    def test_review_with_completed_reminder_becomes_done(self):
+        reminder_id = "14141414-3434-5656-7878-909090909090"
+        task_path = self.tasks / "2026-08-19-review.md"
+        task(task_path, str(uuid.uuid4()), "Approved", "review", "2026-08-20", reminder_id)
+        self.state.write_text(json.dumps({"reminders": [{
+            "id": reminder_id, "title": "Approved", "notes": "", "dueDate": "2026-08-20T01:00:00Z",
+            "isAllDay": True, "isCompleted": True, "list": "待办"
+        }], "calls": []}), encoding="utf-8")
+        self.run_sync()
+        metadata, body = read_frontmatter(task_path)
+        self.assertEqual(metadata["status"], "done")
+        self.assertIn("· **review→done** · `codex`", body)
+
     def test_reminder_completion_writes_done_fires_hook_once_and_siri_flows_back(self):
         linked_id = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
         task_id = str(uuid.uuid4())

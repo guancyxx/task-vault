@@ -5,19 +5,19 @@
 任务就静静躺在那里 assignee 有值、没人干活。这个脚本是那一层保险：扫描所有任务，
 把「派出去但没人接单」的重新 fire 一次。
 
-判据：有过真实派发（frontmatter 有 dispatched）∧ assignee ∉ {空, user} ∧ status = todo
+判据：（frontmatter 有 dispatched ∨ #auto）∧ assignee ∉ {空, user} ∧ status = todo
       ∧ 距上次派发 > backstop_minutes ∧ 执行记录里上次派发之后没有「接单」记录。
 
-比 contracts §9 原文多一条 `dispatched` 必须存在。原文假设 assignee 只由委派写入，
-实际这个 vault 里 `assignee: hermes` 是任务创建时的默认归属（12 个任务如此，全都没有
-`## 委派` 区）——照原文实现会把「有主人」误当「已派发」，一次拉起 12 个 agent。
+无 dispatched 的普通任务仍不派发，避免把默认归属误判为委派；显式 #auto 是唯一例外。
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import re
 import sys
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -33,6 +33,7 @@ from scripts.tv_common import (  # noqa: E402
     read_frontmatter,
     run_hook,
     update_ledger,
+    write_frontmatter,
 )
 
 # ponytail: 三次还没人接单就不再开窗口——再派也是同一个坏原因（hook 配错/终端起不来），
@@ -42,6 +43,7 @@ MAX_ATTEMPTS = 3
 # 都会弹一个终端窗口。要一次性清空积压就手动跑几轮或 --force。
 MAX_PER_RUN = 3
 LOG_ENTRY = re.compile(r"^-\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s")
+_THREAD_CLAIM_LOCK = threading.Lock()
 
 
 def _parse_stamp(value: str) -> datetime | None:
@@ -94,15 +96,21 @@ def needs_redispatch(
     if metadata.get("status") != "todo":
         return False
 
-    # 委派证据：只有 delegate() 会写 dispatched。没有它 = 这个 assignee 是默认归属，
-    # 不是有人交办过 —— 绝不能凭「有主人」就去起 agent。
+    tags = metadata.get("tags") or []
+    is_auto = "auto" in tags if isinstance(tags, list) else False
+
+    # 委派证据通常是 delegate() 写的 dispatched；显式 #auto 是唯一允许在没有该字段时
+    # 自动首派的入口。普通默认 assignee 仍不得触发 agent。
     dispatched = _parse_stamp(str(metadata.get("dispatched") or ""))
-    if dispatched is None:
+    if dispatched is None and not is_auto:
         return False
 
     entry = ledger.get("dispatch", {}).get(str(metadata.get("id", "")), {})
     if int(entry.get("count", 0)) >= MAX_ATTEMPTS:
         return False
+
+    if dispatched is None:
+        return not accepted_after(body, None)
 
     # 上次派发 = dispatched 与 ledger last_at 里更晚的那个。只看 dispatched 会让补派
     # 自己变成风暴：补派不写 dispatched（禁令），下一 tick 又满足条件。
@@ -126,23 +134,60 @@ def _iter_tasks(tasks_dir: Path):
             yield path, metadata, body
 
 
-def dispatch(vault: Path, path: Path, metadata: dict[str, Any], body: str, hook: str, dry_run: bool) -> None:
-    instruction = section(body, "## 委派")
-    if dry_run:
-        print(f"would-dispatch {metadata['title']} → {metadata.get('assignee')}")
-        return
-    run_hook(hook, path, metadata, instruction)
-    task_id = str(metadata["id"])
+def dispatch(
+    vault: Path,
+    path: Path,
+    hook: str,
+    dry_run: bool,
+    threshold_minutes: int,
+    *,
+    force: bool = False,
+) -> bool:
+    """Atomically claim and dispatch one task; return whether a hook was/would be fired.
 
-    def mutate(ledger: dict[str, Any]) -> None:
-        previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
-        ledger["dispatch"][task_id] = {
-            "count": previous + 1,
-            "last_at": now_shanghai().isoformat(timespec="seconds"),
-        }
+    The cross-process lock deliberately covers the last reread, full eligibility check,
+    optional #auto frontmatter claim, hook invocation, and successful-attempt accounting.
+    """
+    lock_path = vault / ".taskvault" / "dispatch.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # flock serializes cron processes. The in-process mutex also makes the contract explicit
+    # for threaded callers/tests on platforms where flock locks are process-associated.
+    with _THREAD_CLAIM_LOCK, lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        metadata, body = read_frontmatter(path)
+        claim_now = now_shanghai()
+        current_ledger = load_ledger(vault)
+        if not force and not needs_redispatch(metadata, body, current_ledger, claim_now, threshold_minutes):
+            return False
 
-    update_ledger(vault, mutate)
-    print(f"dispatched {metadata['title']} → {metadata.get('assignee')}")
+        instruction = section(body, "## 委派")
+        if dry_run:
+            print(f"would-dispatch {metadata['title']} → {metadata.get('assignee')}")
+            return True
+
+        task_id = str(metadata["id"])
+        claim_stamp = claim_now.isoformat(timespec="seconds")
+
+        tags = metadata.get("tags") or []
+        if isinstance(tags, list) and "auto" in tags and not metadata.get("dispatched"):
+            # Use only the just-reread metadata/body as the write source and mutate one field.
+            metadata["dispatched"] = claim_stamp
+            write_frontmatter(path, metadata, body)
+            metadata, body = read_frontmatter(path)  # verified source passed to the hook
+            instruction = section(body, "## 委派")
+
+        # Contract §9 (re-audit C4): the attempt is claimed BEFORE the hook fires — once
+        # eligibility passed under the lock, the slot is spent even if the hook then fails.
+        # Claiming after success let two concurrent cron instances both pass count=0.
+        def claim_attempt(ledger: dict[str, Any]) -> None:
+            previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
+            ledger["dispatch"][task_id] = {"count": previous + 1, "last_at": claim_stamp}
+
+        update_ledger(vault, claim_attempt)
+
+        run_hook(hook, path, metadata, instruction)
+        print(f"dispatched {metadata['title']} → {metadata.get('assignee')}")
+        return True
 
 
 def main() -> int:
@@ -160,8 +205,7 @@ def main() -> int:
 
     if args.force:
         path = args.force if args.force.is_absolute() else args.vault / args.force
-        metadata, body = read_frontmatter(path)
-        dispatch(args.vault, path, metadata, body, hook, args.dry_run)
+        dispatch(args.vault, path, hook, args.dry_run, int(config.get("backstop_minutes", 30)), force=True)
         return 0
 
     now = now_shanghai()
@@ -173,9 +217,9 @@ def main() -> int:
             if actions >= MAX_PER_RUN:
                 print(f"capped at {MAX_PER_RUN}/run, still eligible: {metadata['title']}")
                 continue
-            dispatch(args.vault, path, metadata, body, hook, args.dry_run)
-            ledger = load_ledger(args.vault)  # 重读：dispatch 刚写过 ledger
-            actions += 1
+            if dispatch(args.vault, path, hook, args.dry_run, threshold):
+                ledger = load_ledger(args.vault)  # 重读：dispatch 刚写过 ledger
+                actions += 1
     print(f"actions={actions}")
     return 0
 

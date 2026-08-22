@@ -1,12 +1,19 @@
+import json
 import sys
+import tempfile
+import threading
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.dispatch_backstop import MAX_ATTEMPTS, accepted_after, needs_redispatch, section
-from scripts.tv_common import SHANGHAI
+from unittest.mock import patch
+
+import yaml
+
+from scripts.dispatch_backstop import MAX_ATTEMPTS, accepted_after, dispatch, needs_redispatch, section
+from scripts.tv_common import SHANGHAI, load_ledger, read_frontmatter
 
 NOW = datetime(2026, 8, 19, 18, 0, tzinfo=SHANGHAI)
 
@@ -45,6 +52,16 @@ class Eligibility(unittest.TestCase):
     def test_assignee_without_dispatched_is_not_a_delegation(self):
         # `assignee: hermes` 是创建时的默认归属，vault 里 12 个任务如此。有主人 ≠ 派发过。
         self.assertFalse(needs_redispatch(meta(), body(), ledger(), NOW, 30))
+
+    def test_auto_task_without_dispatched_is_claimed(self):
+        self.assertTrue(needs_redispatch(meta(tags=["auto"]), body(), ledger(), NOW, 30))
+
+    def test_task_without_auto_or_dispatched_is_not_claimed(self):
+        self.assertFalse(needs_redispatch(meta(tags=["project/x"]), body(), ledger(), NOW, 30))
+
+    def test_auto_task_already_accepted_is_not_claimed_again(self):
+        accepted = f"- {(NOW - timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M')} · `cc`\n  接单：已开始"
+        self.assertFalse(needs_redispatch(meta(tags=["auto"]), body([accepted]), ledger(), NOW, 30))
 
     def test_inside_threshold_waits(self):
         m = meta(dispatched=stamp(10))
@@ -97,6 +114,111 @@ class Sections(unittest.TestCase):
         self.assertTrue(accepted_after(b, NOW - timedelta(hours=1)))
         self.assertFalse(accepted_after(b, NOW - timedelta(minutes=5)))
 
+
+class AtomicDispatch(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.vault = Path(self.tmp.name)
+        self.path = self.vault / "03 Tasks" / "task.md"
+        self.path.parent.mkdir(parents=True)
+        self._write(meta(tags=["auto"]), body())
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, metadata, task_body):
+        frontmatter = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False).rstrip()
+        self.path.write_text(f"---\n{frontmatter}\n---\n{task_body}", encoding="utf-8")
+
+    def _dispatch(self):
+        with patch("scripts.dispatch_backstop.now_shanghai", return_value=NOW):
+            return dispatch(self.vault, self.path, "hook", False, 30)
+
+    def test_reread_status_changed_to_doing_skips_without_write(self):
+        changed = meta(status="doing", tags=["auto"])
+        self._write(changed, body())
+        with patch("scripts.dispatch_backstop.run_hook") as hook:
+            self.assertFalse(self._dispatch())
+            hook.assert_not_called()
+        self.assertNotIn("dispatched", read_frontmatter(self.path)[0])
+
+    def test_reread_tags_changed_skips_without_write(self):
+        self._write(meta(tags=[]), body())
+        with patch("scripts.dispatch_backstop.run_hook") as hook:
+            self.assertFalse(self._dispatch())
+            hook.assert_not_called()
+        self.assertNotIn("dispatched", read_frontmatter(self.path)[0])
+
+    def test_reread_acceptance_skips_without_write(self):
+        accepted = f"- {NOW.strftime('%Y-%m-%d %H:%M')} · `cc`\n  接单：开始"
+        self._write(meta(tags=["auto"]), body([accepted]))
+        with patch("scripts.dispatch_backstop.run_hook") as hook:
+            self.assertFalse(self._dispatch())
+            hook.assert_not_called()
+        self.assertNotIn("dispatched", read_frontmatter(self.path)[0])
+
+    def test_attempt_is_claimed_before_hook_fires(self):
+        # Contract §9 (re-audit C4): the slot is spent the moment eligibility passed under
+        # the lock — a concurrent claimant inside the hook must already observe count=1.
+        def assert_claimed_inside_hook(*_args):
+            self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
+
+        with patch("scripts.dispatch_backstop.run_hook", side_effect=assert_claimed_inside_hook):
+            self.assertTrue(self._dispatch())
+        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
+
+    def test_failed_hook_still_consumes_attempt(self):
+        # Claim-before-fire: a broken hook burns the attempt (bounded retries even when
+        # the hook itself is what's broken).
+        with patch("scripts.dispatch_backstop.run_hook", side_effect=RuntimeError("boom")):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                self._dispatch()
+        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
+
+    def test_two_concurrent_claims_only_dispatch_once(self):
+        entered = threading.Event()
+        release = threading.Event()
+        results = []
+
+        def slow_hook(*_args):
+            entered.set()
+            self.assertTrue(release.wait(2))
+
+        def worker():
+            results.append(dispatch(self.vault, self.path, "hook", False, 30))
+
+        with patch("scripts.dispatch_backstop.now_shanghai", return_value=NOW), patch(
+            "scripts.dispatch_backstop.run_hook", side_effect=slow_hook
+        ) as hook:
+            first = threading.Thread(target=worker)
+            second = threading.Thread(target=worker)
+            first.start()
+            self.assertTrue(entered.wait(2))
+            second.start()
+            release.set()
+            first.join(2)
+            second.join(2)
+
+        self.assertEqual(sorted(results), [False, True])
+        self.assertEqual(hook.call_count, 1)
+        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
+
+    def test_attempts_advance_zero_to_three_then_stop(self):
+        with patch("scripts.dispatch_backstop.run_hook") as hook:
+            for expected in (1, 2, 3):
+                # Each retry must be past the threshold and have no acceptance after it.
+                current, current_body = read_frontmatter(self.path)
+                current["dispatched"] = stamp(600)
+                self._write(current, current_body)
+                ledger_data = load_ledger(self.vault)
+                if expected > 1:
+                    ledger_data["dispatch"]["t1"]["last_at"] = (NOW - timedelta(hours=2)).isoformat()
+                    ledger_path = self.vault / ".taskvault" / "ledger.json"
+                    ledger_path.write_text(json.dumps(ledger_data), encoding="utf-8")
+                self.assertTrue(self._dispatch())
+                self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], expected)
+            self.assertFalse(self._dispatch())
+            self.assertEqual(hook.call_count, 3)
 
 if __name__ == "__main__":
     unittest.main()

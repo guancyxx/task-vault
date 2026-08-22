@@ -27,6 +27,8 @@ export class TaskActions {
     private store: TaskStore,
     private body: LogWriter & SectionWriter,
     private hooks: HookRunner,
+    // Plugin UI is an explicit local-user confirmation channel. Tests/automation may
+    // inject an agent actor, which is then constrained by the FR-030 machine guard.
     private actor: Actor = 'user',
     private now: () => Date = () => new Date(),
   ) {}
