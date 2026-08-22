@@ -46,6 +46,16 @@ class Eligibility(unittest.TestCase):
         # `assignee: hermes` 是创建时的默认归属，vault 里 12 个任务如此。有主人 ≠ 派发过。
         self.assertFalse(needs_redispatch(meta(), body(), ledger(), NOW, 30))
 
+    def test_auto_task_without_dispatched_is_claimed(self):
+        self.assertTrue(needs_redispatch(meta(tags=["auto"]), body(), ledger(), NOW, 30))
+
+    def test_task_without_auto_or_dispatched_is_not_claimed(self):
+        self.assertFalse(needs_redispatch(meta(tags=["project/x"]), body(), ledger(), NOW, 30))
+
+    def test_auto_task_already_accepted_is_not_claimed_again(self):
+        accepted = f"- {(NOW - timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M')} · `cc`\n  接单：已开始"
+        self.assertFalse(needs_redispatch(meta(tags=["auto"]), body([accepted]), ledger(), NOW, 30))
+
     def test_inside_threshold_waits(self):
         m = meta(dispatched=stamp(10))
         self.assertFalse(needs_redispatch(m, body(), ledger(), NOW, 30))

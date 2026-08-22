@@ -5,12 +5,10 @@
 任务就静静躺在那里 assignee 有值、没人干活。这个脚本是那一层保险：扫描所有任务，
 把「派出去但没人接单」的重新 fire 一次。
 
-判据：有过真实派发（frontmatter 有 dispatched）∧ assignee ∉ {空, user} ∧ status = todo
+判据：（frontmatter 有 dispatched ∨ #auto）∧ assignee ∉ {空, user} ∧ status = todo
       ∧ 距上次派发 > backstop_minutes ∧ 执行记录里上次派发之后没有「接单」记录。
 
-比 contracts §9 原文多一条 `dispatched` 必须存在。原文假设 assignee 只由委派写入，
-实际这个 vault 里 `assignee: hermes` 是任务创建时的默认归属（12 个任务如此，全都没有
-`## 委派` 区）——照原文实现会把「有主人」误当「已派发」，一次拉起 12 个 agent。
+无 dispatched 的普通任务仍不派发，避免把默认归属误判为委派；显式 #auto 是唯一例外。
 """
 
 from __future__ import annotations
@@ -33,6 +31,7 @@ from scripts.tv_common import (  # noqa: E402
     read_frontmatter,
     run_hook,
     update_ledger,
+    write_frontmatter,
 )
 
 # ponytail: 三次还没人接单就不再开窗口——再派也是同一个坏原因（hook 配错/终端起不来），
@@ -94,15 +93,21 @@ def needs_redispatch(
     if metadata.get("status") != "todo":
         return False
 
-    # 委派证据：只有 delegate() 会写 dispatched。没有它 = 这个 assignee 是默认归属，
-    # 不是有人交办过 —— 绝不能凭「有主人」就去起 agent。
+    tags = metadata.get("tags") or []
+    is_auto = "auto" in tags if isinstance(tags, list) else False
+
+    # 委派证据通常是 delegate() 写的 dispatched；显式 #auto 是唯一允许在没有该字段时
+    # 自动首派的入口。普通默认 assignee 仍不得触发 agent。
     dispatched = _parse_stamp(str(metadata.get("dispatched") or ""))
-    if dispatched is None:
+    if dispatched is None and not is_auto:
         return False
 
     entry = ledger.get("dispatch", {}).get(str(metadata.get("id", "")), {})
     if int(entry.get("count", 0)) >= MAX_ATTEMPTS:
         return False
+
+    if dispatched is None:
+        return not accepted_after(body, None)
 
     # 上次派发 = dispatched 与 ledger last_at 里更晚的那个。只看 dispatched 会让补派
     # 自己变成风暴：补派不写 dispatched（禁令），下一 tick 又满足条件。
@@ -131,6 +136,15 @@ def dispatch(vault: Path, path: Path, metadata: dict[str, Any], body: str, hook:
     if dry_run:
         print(f"would-dispatch {metadata['title']} → {metadata.get('assignee')}")
         return
+    tags = metadata.get("tags") or []
+    if isinstance(tags, list) and "auto" in tags and not metadata.get("dispatched"):
+        # Contract §9 exception: #auto first claim is the only backstop path allowed to create
+        # dispatched. Reread immediately before the atomic frontmatter write to avoid lost updates.
+        metadata, body = read_frontmatter(path)
+        metadata["dispatched"] = now_shanghai().isoformat(timespec="seconds")
+        write_frontmatter(path, metadata, body)
+        metadata, body = read_frontmatter(path)  # verify/read back before firing the hook
+        instruction = section(body, "## 委派")
     run_hook(hook, path, metadata, instruction)
     task_id = str(metadata["id"])
 
