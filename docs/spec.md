@@ -136,6 +136,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - FR-028 agent 执行态推导与侧边栏徽章：dispatched/working/stuck/review 四相，接单/卡点文本判定与 backstop 同源
 - FR-029 #auto 自动领取：backstop 判据扩展，#auto+todo+assignee≠user 无 dispatched 也派发
 - FR-030 review 复核状态：第八态 doing→review→done/doing/cancelled；状态机硬门禁按 actor 执行：hermes/cc/codex 任何状态均不得直达 done，只能 X→review；仅 actor=user（含插件本地 UI 与 Reminders 勾选确认通道）可 doing/review→done
+- FR-030a 聊天确认引用通道：用户在聊天里明确批准收尾（如「做」「do」）时，agent 可据此直接置 done，但必须在 done 条目内（或时间上晚于 done 边的条目里）写引用行 `user-confirm: session=<sid> msg=<id> quote="原文子串"`。插件门禁只认格式放行；审计脚本（scripts/review_audit.py）对每条引用核验 Hermes 会话库 state.db：msg 存在 ∧ role=user ∧ session 吻合 ∧ quote 是原文子串 ∧ 消息时间不晚于 done 边 ∧ 非系统注入（[ASYNC…/[OUT-OF-BAND… 前缀拒收）。核验不过 = 未复核，按危险项告警
 
 留痕与 hook：
 - FR-018 执行记录协议：`- <时间戳> [<执行者>] ([类型]) <内容>` 追加式，四类条目（进展/决策/评论/卡点）+ `[from→to]` 迁移记录
