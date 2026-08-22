@@ -15,6 +15,7 @@ const BUCKETS: Array<[string, Task, Bucket]> = [
   ['terminal done → done', task({ status: 'done', due: '2026-08-19' }), 'done'],
   ['terminal cancelled → done', task({ status: 'cancelled' }), 'done'],
   ['review → dedicated review bucket', task({ status: 'review', due: '2026-08-18' }), 'review'],
+  ['review due today → dedicated review bucket', task({ status: 'review', due: '2026-08-19' }), 'review'],
   ['done with past due never overdue', task({ status: 'done', due: '2026-08-01' }), 'done'],
   ['no due + inbox → week (inbox bucket removed)', task({ status: 'inbox' }), 'week'],
   ['no due + todo → week (inbox bucket removed)', task({ status: 'todo' }), 'week'],

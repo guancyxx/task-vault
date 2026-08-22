@@ -3,6 +3,8 @@ import { groupSortKey, TaskStore, type Entry, type LogWriter, type VaultReader }
 import { serializeTaskFile } from '../src/util/frontmatter';
 import type { EntryInput } from '../src/log/executionLog';
 import type { Status, Task } from '../src/model/types';
+import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from '../src/store/reviewGate';
+import { parseTaskFile } from '../src/util/frontmatter';
 
 const NOW = new Date(2026, 7, 19, 14, 32); // local 2026-08-19 14:32 (Wed)
 
@@ -14,7 +16,7 @@ function file(t: Partial<Task> & { id: string; status?: Status }): string {
 }
 
 // In-memory vault: path → raw file contents. Mutate then call the store's incremental hooks.
-class MemVault implements VaultReader, LogWriter {
+class MemVault implements VaultReader, LogWriter, ReviewGateWriter {
   files = new Map<string, string>();
   logCalls: Array<{ path: string; entry: EntryInput }> = [];
   set(path: string, raw: string): void {
@@ -31,6 +33,13 @@ class MemVault implements VaultReader, LogWriter {
   async appendLog(path: string, entry: EntryInput): Promise<void> {
     this.logCalls.push({ path, entry });
   }
+  async enforceReviewGate(path: string, previous: Status, now: Date): Promise<boolean> {
+    const parsed = parseTaskFile(await this.read(path), path);
+    if (!parsed.ok || !shouldGuardExternalDone(previous, parsed.task, parsed.body)) return false;
+    const guarded = applyReviewGate(parsed.task, parsed.body, now);
+    this.set(path, serializeTaskFile(guarded.task, guarded.body));
+    return true;
+  }
 }
 
 let vault: MemVault;
@@ -38,7 +47,7 @@ let store: TaskStore;
 
 beforeEach(() => {
   vault = new MemVault();
-  store = new TaskStore(vault, vault, () => NOW);
+  store = new TaskStore(vault, vault, () => NOW, vault);
 });
 
 describe('scan + index (FR-007)', () => {
@@ -96,7 +105,7 @@ describe('blocked derivation (FR-004)', () => {
     expect(store.isBlocked('a')).toBe(true);
 
     // B completes → A releases back to its stored status (doing → doing).
-    vault.set('03 Tasks/b.md', file({ id: 'b', status: 'done', due: '2026-08-01' }));
+    vault.set('03 Tasks/b.md', file({ id: 'b', status: 'done', due: '2026-08-01', assignee: 'user' }));
     await store.upsert('03 Tasks/b.md');
 
     expect(store.isBlocked('a')).toBe(false);
@@ -153,6 +162,48 @@ describe('incremental update + change notification', () => {
   });
 });
 
+describe('external done review gate (FR-030)', () => {
+  const path = '03 Tasks/gated.md';
+  const delegated = (status: Status, body = '', extra: Partial<Task> = {}): string =>
+    serializeTaskFile(
+      { id: 'gated', title: 'gated', status, created: '2026-08-19T09:00', assignee: 'cc', ...extra },
+      body,
+    );
+
+  async function baselineThenDone(body = '', extra: Partial<Task> = {}): Promise<void> {
+    vault.set(path, delegated('doing'));
+    await store.scan();
+    vault.set(path, delegated('done', body, { completed: '2026-08-19T14:30', ...extra }));
+    await store.upsert(path);
+  }
+
+  it('rewrites an unconfirmed external done to review and clears completed', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · **doing→done** · `cc`\n  完成\n');
+    const entry = store.entryByPath(path)!;
+    expect(entry.task.status).toBe('review');
+    expect(entry.task.completed).toBeUndefined();
+    expect(entry.body).toContain('**done→review** · `hermes`');
+    expect(entry.body).toContain('复核门禁');
+  });
+
+  it('allows a Reminders completion marker', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · `user`\n  Reminders 里勾了完成\n');
+    expect(store.entryByPath(path)!.task.status).toBe('done');
+  });
+
+  it('allows a user-authored done transition', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · **doing→done** · `user`\n  确认完成\n');
+    expect(store.entryByPath(path)!.task.status).toBe('done');
+  });
+
+  it('does not duplicate intervention on a repeated event', async () => {
+    await baselineThenDone('## 执行记录\n- 2026-08-19 14:30 · **doing→done** · `cc`\n  完成\n');
+    await store.upsert(path);
+    const matches = store.entryByPath(path)!.body.match(/复核门禁/g) ?? [];
+    expect(matches).toHaveLength(1);
+  });
+});
+
 describe('groupSortKey execution ordering (FR-028/030)', () => {
   function entry(id: string, status: Status, body = '', extra: Partial<Task> = {}): Entry {
     return {
@@ -172,5 +223,30 @@ describe('groupSortKey execution ordering (FR-028/030)', () => {
     const stuck = entry('stuck', 'doing', '## 执行记录\n- 2026-08-19 12:00 · **卡点** · `cc`\n  卡点：等待权限\n', { assignee: 'cc' });
     const todo = entry('todo', 'todo');
     expect([todo, stuck].sort(groupSortKey).map((e) => e.task.id)).toEqual(['stuck', 'todo']);
+  });
+
+  it('falls back from equal weight through priority and due', () => {
+    const laterHigh = entry('later-high', 'todo', '', { priority: 'high', due: '2026-08-21' });
+    const earlyLow = entry('early-low', 'todo', '', { priority: 'low', due: '2026-08-19' });
+    const earlyHigh = entry('early-high', 'todo', '', { priority: 'high', due: '2026-08-20' });
+    expect([earlyLow, laterHigh, earlyHigh].sort(groupSortKey).map((e) => e.task.id)).toEqual([
+      'early-high',
+      'later-high',
+      'early-low',
+    ]);
+  });
+
+  it('falls back from equal priority/due through created and id', () => {
+    const newer = entry('z-newer', 'todo', '', { priority: 'normal', due: '2026-08-20', created: '2026-08-19T10:00' });
+    const b = entry('b', 'todo', '', { priority: 'normal', due: '2026-08-20', created: '2026-08-19T08:00' });
+    const a = entry('a', 'todo', '', { priority: 'normal', due: '2026-08-20', created: '2026-08-19T08:00' });
+    expect([newer, b, a].sort(groupSortKey).map((e) => e.task.id)).toEqual(['a', 'b', 'z-newer']);
+  });
+
+  it('keeps done bucket chronological regardless of priority weight', async () => {
+    vault.set('03 Tasks/late.md', file({ id: 'late', status: 'done', completed: '2026-08-19T12:00', due: '2026-08-20', priority: 'high' }));
+    vault.set('03 Tasks/early.md', file({ id: 'early', status: 'done', completed: '2026-08-19T12:00', due: '2026-08-18', priority: 'low' }));
+    await store.scan();
+    expect(store.bucketed(NOW).done.map((e) => e.task.id)).toEqual(['early', 'late']);
   });
 });
