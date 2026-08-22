@@ -5,7 +5,7 @@
 
 ## Objective
 
-替换 obsidian-tasks + Dataview Dashboard + 文本行任务约定，为单人（guancyxx）单机场景构建 Obsidian 任务插件：每任务一文件、frontmatter 承载全部结构化字段、UUID 唯一身份、七态全生命周期状态机、分钟级 DDL 时间控制、侧边栏驾驶舱、执行过程留痕、终态总结/派发 hook、Apple Reminders 双向镜像重写、31 条存量任务迁移。
+替换 obsidian-tasks + Dataview Dashboard + 文本行任务约定，为单人（guancyxx）单机场景构建 Obsidian 任务插件：每任务一文件、frontmatter 承载全部结构化字段、UUID 唯一身份、八态全生命周期状态机、分钟级 DDL 时间控制、侧边栏驾驶舱、执行过程留痕、终态总结/派发 hook、Apple Reminders 双向镜像重写、31 条存量任务迁移。
 
 用户：本人 + 本机 agent 生态（Hermes/CC/Codex 的 6 个 cron 直接读写任务文件）。成功 = 四大痛点（视图弱/文本脆弱/交互摩擦/缺硬功能）全部消除，且不引入新的同步事故面。
 
@@ -67,7 +67,8 @@ TypeScript strict；核心域（model/time/log/hooks 逻辑）为零依赖纯函
 export const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
   inbox:    ['todo', 'cancelled'],
   todo:     ['doing', 'cancelled'],
-  doing:    ['waiting', 'done', 'cancelled'],
+  doing:    ['waiting', 'review', 'done', 'cancelled'],
+  review:   ['done', 'doing', 'cancelled'],
   waiting:  ['todo', 'doing', 'cancelled'],
   blocked:  ['waiting', 'cancelled'],   // blocked 仅由依赖推导进入，出口人工
   done:     [],
@@ -99,7 +100,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - SC-002 对已有 Reminders 镜像的任务改 title/due/tags 任意字段，同步器稳态零新建零误勾（身份不变）
 - SC-003 31 条存量任务全部迁移：due/priority/来源解析正确，历史日文件移入 `03 Tasks/_archive/` 且逐字节不变
 - SC-004 同一任务达到终态，terminal hook 恰好 fire 一次（含 Obsidian 重启、手机端 Reminders 完成两条路径）
-- SC-005 侧边栏五分区与全库人工盘点一致（抽查 ≥10 条，含 blocked/waiting/timed 混合）
+- SC-005 侧边栏六分区与全库人工盘点一致（抽查 ≥10 条，含 review/blocked/waiting/timed 混合）
 - SC-006 nlDateParser 在 ≥60 条封闭语料上通过率 ≥95%，否定例（解析失败）原文落 inbox 不丢字
 - SC-007 倒计时/过期显示在 date↔datetime、跨日、超期≥1d 等边界用例上全部正确（语料断言）
 - SC-008 blocked 为纯推导：依赖完成即自动解除并刷新，无需手动干预
@@ -112,7 +113,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 数据与状态：
 - FR-001 任务文件格式：每任务一 md 文件（`03 Tasks/` 顶层，`YYYY-MM-DD-<slug>.md`），frontmatter 按 schema v1.1 §4（id/title/status/start/due/remind/created/started/completed/priority/source/assignee/dispatched/project/area/parent/blocked-by/tags/mirror）
 - FR-002 身份不变性：除 `id` 外任意字段/正文编辑不改变任务身份；镜像映射只认 id
-- FR-003 七态状态机（inbox/todo/doing/waiting/blocked/done/cancelled）+ 合法转移表 + created/started/completed 自动维护
+- FR-003 八态状态机（inbox/todo/doing/review/waiting/blocked/done/cancelled）+ 合法转移表 + created/started/completed 自动维护
 - FR-004 blocked 由 blocked-by 推导（依赖未终态即 blocked），不可手设；依赖终态自动解除
 - FR-005 子任务：parent 指针，父行折叠展示 + x/y 进度
 
@@ -132,12 +133,15 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - FR-016 图例体系：状态×图标×颜色规范 + 侧边栏图例面板
 - FR-017 《任务系统规范》文档（状态机/字段/时间语义/写入协议/委派协议），随插件交付并同步进 vault
 - FR-027 记一条执行记录：命令面板/热键入口，对编辑器当前打开的任务文件唤出快速填入框（类型+一行文本），走 appendQuick canonical 通道落盘——侧边栏行外（编辑器中的任务文档）也有合规写入入口，免手写固定格式
+- FR-028 agent 执行态推导与侧边栏徽章：dispatched/working/stuck/review 四相，接单/卡点文本判定与 backstop 同源
+- FR-029 #auto 自动领取：backstop 判据扩展，#auto+todo+assignee≠user 无 dispatched 也派发
+- FR-030 review 复核状态：第八态 doing→review→done/doing/cancelled；agent 收尾门禁：#auto 与委派任务只能到 review，用户确认后 done
 
 留痕与 hook：
 - FR-018 执行记录协议：`- <时间戳> [<执行者>] ([类型]) <内容>` 追加式，四类条目（进展/决策/评论/卡点）+ `[from→to]` 迁移记录
 - FR-019 终态 hook：done/cancelled 时 fire 可配置 shell 命令（参数 TASK_PATH/TASK_ID/TASK_STATUS/TASK_TITLE/TASK_ASSIGNEE），幂等（ledger：task_id+终态 唯一）
 - FR-020 手动"总结"按钮（任意状态可触发，不占幂等名额）
-- FR-021 派发 hook：dispatch 事件 fire + 更新 dispatched；兜底 cron 规格（assignee≠user ∧ status=todo ∧ 无接单记录 ∧ dispatched>30min → 补派）随交付文档化
+- FR-021 派发 hook：dispatch 事件 fire + 更新 dispatched；兜底 cron 规格（assignee≠user ∧ status=todo ∧ 无接单记录 ∧ dispatched>30min → 补派，#auto 首派扩展见 FR-029）随交付文档化
 - FR-022 hook 命令模板、默认提醒时刻、兜底阈值均在设置面板可配
 
 同步与迁移：
