@@ -176,15 +176,16 @@ def dispatch(
             metadata, body = read_frontmatter(path)  # verified source passed to the hook
             instruction = section(body, "## 委派")
 
-        run_hook(hook, path, metadata, instruction)
-
-        # Contract: only a successful hook advances the attempt ledger. This remains inside
-        # the claim lock, so the next claimant observes the updated count and last_at.
-        def record_success(ledger: dict[str, Any]) -> None:
+        # Contract §9 (re-audit C4): the attempt is claimed BEFORE the hook fires — once
+        # eligibility passed under the lock, the slot is spent even if the hook then fails.
+        # Claiming after success let two concurrent cron instances both pass count=0.
+        def claim_attempt(ledger: dict[str, Any]) -> None:
             previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
             ledger["dispatch"][task_id] = {"count": previous + 1, "last_at": claim_stamp}
 
-        update_ledger(vault, record_success)
+        update_ledger(vault, claim_attempt)
+
+        run_hook(hook, path, metadata, instruction)
         print(f"dispatched {metadata['title']} → {metadata.get('assignee')}")
         return True
 

@@ -157,19 +157,23 @@ class AtomicDispatch(unittest.TestCase):
             hook.assert_not_called()
         self.assertNotIn("dispatched", read_frontmatter(self.path)[0])
 
-    def test_attempt_is_recorded_after_hook_success(self):
-        def assert_not_recorded(*_args):
-            self.assertNotIn("t1", load_ledger(self.vault)["dispatch"])
+    def test_attempt_is_claimed_before_hook_fires(self):
+        # Contract §9 (re-audit C4): the slot is spent the moment eligibility passed under
+        # the lock — a concurrent claimant inside the hook must already observe count=1.
+        def assert_claimed_inside_hook(*_args):
+            self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
 
-        with patch("scripts.dispatch_backstop.run_hook", side_effect=assert_not_recorded):
+        with patch("scripts.dispatch_backstop.run_hook", side_effect=assert_claimed_inside_hook):
             self.assertTrue(self._dispatch())
         self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
 
-    def test_failed_hook_does_not_consume_attempt(self):
+    def test_failed_hook_still_consumes_attempt(self):
+        # Claim-before-fire: a broken hook burns the attempt (bounded retries even when
+        # the hook itself is what's broken).
         with patch("scripts.dispatch_backstop.run_hook", side_effect=RuntimeError("boom")):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 self._dispatch()
-        self.assertNotIn("t1", load_ledger(self.vault)["dispatch"])
+        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
 
     def test_two_concurrent_claims_only_dispatch_once(self):
         entered = threading.Event()
