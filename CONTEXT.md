@@ -6,14 +6,14 @@
 |---|---|
 | 任务文件 (task file) | `03 Tasks/YYYY-MM-DD-<slug>.md`，每任务一个，frontmatter 承载全部结构化字段 |
 | 身份 (identity) | frontmatter `id`（UUID）。改其他任何字段不换身份——旧系统"整行文本 hash 为 key"的根治点 |
-| 状态机 | inbox→todo→doing⇄waiting / blocked(推导)→done/cancelled 七态；转移表见 model/statusMachine.ts |
+| 状态机 | inbox→todo→doing⇄waiting / review（agent 交付门禁）/ blocked(推导)→done/cancelled 八态；agent actor 不得直达 done，仅 user 确认通道可完成；转移表见 model/statusMachine.ts |
 | blocked | 非手设状态，由 blocked-by 里存在未终态依赖推导；依赖 done/cancelled 自动解除 |
 | 时间三元组 | start（计划开始，未到不进今天）/ due（DDL，date=全天 or datetime=分钟硬截止）/ remind（提前量 m\|h\|d） |
 | 全天默认提醒 | date-only 任务的提醒时刻默认当天 09:00（timed 任务默认 due 时刻）；可配置 |
 | 执行记录 | 任务文件 `## 执行记录` 区，`- <ts> [<actor>] ([类型]) <内容>` 追加式；类型：进展(无)/[决策]/[评论]/[卡点]；迁移落 `[from→to]` |
 | 终态 hook | status 进入 done/cancelled 时 fire 的可配置 shell 命令；幂等键 = task_id+终态 |
 | 派发 hook | 委派时 fire 的 hook；`dispatched` 时间戳 + `## 委派` 指令区构成派发上下文 |
-| 兜底 cron | 扫描 assignee≠user ∧ status=todo ∧ 30min 无接单 → 补派（hook 失败不静默） |
+| 兜底 cron | 锁内重读并扫描（dispatched 超时或显式 #auto 首派）∧ assignee≠user ∧ status=todo ∧ 无接单 → 先占 ledger attempt 再补派；最多 3 次，hook 失败也计数 |
 | mirror 块 | frontmatter 里同步器私有的 reminders-uuid 字段；插件/agent 禁碰 |
 | ledger | `vault/.taskvault/ledger.json`：hook 幂等账本 + 运行时状态，插件与 Python 同步器共用 |
 | 旧系统 | 文本行 `- [ ] 描述 #hermes 📅 日期` + obsidian-tasks + Dataview + obsidian-reminders-sync.py（10 已修坑）；仅存于 `_archive/` 与退役文档 |

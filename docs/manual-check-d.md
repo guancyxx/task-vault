@@ -16,7 +16,7 @@
 - [ ] 设置 → Task Vault：看到「终态 hook / 派发 hook / 全天默认提醒时刻 / 兜底派发阈值」四项，初始值分别为 空 / 空 / 09:00 / 30。
 - [ ] 终态 hook 填 `echo "done {TASK_ID}" >> /tmp/tv-hook.log`，切走再回设置 → 值已保存。
 - [ ] 检查 `vault/.taskvault/config.json`：`terminal_hook` 已写入，格式符合 contracts §2。
-- [ ] 命令面板 → `Task Vault: 图例`：弹窗列出 7 状态×图标×颜色、剩/超期两种时间徽章、委派图标；配色与侧边栏行一致。
+- [ ] 命令面板 → `Task Vault: 图例`：弹窗列出 8 状态×图标×颜色、剩/超期两种时间徽章、委派图标；配色与侧边栏行一致。
 
 ## Task 12 — Hook 体系（配合 Task 10 触发）
 

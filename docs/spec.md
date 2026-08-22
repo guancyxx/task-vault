@@ -40,7 +40,7 @@ task-vault/
 │   ├── settings.ts             # hook 命令模板、默认提醒时刻、兜底参数
 │   ├── model/
 │   │   ├── types.ts            # Task/Status/字段 schema 常量（单一事实源）
-│   │   └── statusMachine.ts    # 七态转移表 + 时间戳维护（纯函数）
+│   │   └── statusMachine.ts    # 八态转移表 + actor review 门禁 + 时间戳维护（纯函数）
 │   ├── store/taskStore.ts      # 索引构建、文件监听、查询分区（薄适配 obsidian）
 │   ├── time/
 │   │   ├── timeRules.ts        # due/start/remind 语义、今天/过期/倒计时推导（纯函数）

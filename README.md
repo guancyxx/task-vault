@@ -5,7 +5,7 @@
 [![Blog](https://img.shields.io/badge/blog-guancyxx.cn-8A2BE2)](https://guancyxx.cn)
 
 A structured task manager for Obsidian: **one file per task**, stable UUID identity, a
-seven-state machine, an append-only execution log, and first-class delegation to AI
+eight-state machine with an agent review gate, an append-only execution log, and first-class delegation to AI
 coding agents — without giving up plain-Markdown portability.
 
 > Built by [官小西 (guancyxx)](https://guancyxx.cn) — Full-Stack Developer & AI Product
@@ -24,7 +24,7 @@ Task Vault fixes the data model first:
 | Pain | Fix |
 |---|---|
 | Text-line identity is fragile | UUID in frontmatter; title/dates/tags freely editable |
-| No structure beyond a checkbox | 7-state machine (inbox → todo → doing → waiting/blocked → done/cancelled) with legal-transition-only UI |
+| No structure beyond a checkbox | 8-state machine (inbox → todo → doing → review/waiting/blocked → done/cancelled) with legal-transition-only UI |
 | Decisions live nowhere | Append-only execution log with typed entries (decision / comment / blocker) and state-migration records |
 | AI agents edit tasks blindly | Delegation section + `assignee`/`dispatched` fields + dispatch hooks; agents read the task file like a spec |
 | "Today / overdue / this week" requires queries | Sidebar cockpit buckets with countdown badges and per-project folding |
@@ -44,6 +44,8 @@ Task Vault fixes the data model first:
 - **Delegation** — pick an agent (CC > Codex > Hermes recommended order), write the
   instruction into `## 委派`, fire your own dispatch hook; one-click "copy task prompt"
   hands any agent a ready-to-execute brief.
+- **Review gate** — Hermes/CC/Codex can deliver only to `review`; only an explicit local-user
+  action or a checked Reminder can confirm the task as `done`.
 - **Hooks** — terminal-state hook (e.g. notify on done) and dispatch hook, both plain
   shell commands you configure.
 - **Natural-language capture** — `!high`, `@project`, `#tag`, and Chinese/English date
@@ -67,7 +69,7 @@ Task Vault fixes the data model first:
 ---
 id: <UUID>          # identity, never changes
 title: 修 neutralizeFence 正则容错
-status: doing       # inbox|todo|doing|waiting|blocked|done|cancelled
+status: doing       # inbox|todo|doing|review|waiting|blocked|done|cancelled
 due: 2026-08-20T22:00
 priority: high      # high|normal|low
 project: "[[magicedit]]"
