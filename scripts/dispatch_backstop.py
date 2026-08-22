@@ -17,6 +17,7 @@ import argparse
 import fcntl
 import re
 import sys
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,7 @@ MAX_ATTEMPTS = 3
 # 都会弹一个终端窗口。要一次性清空积压就手动跑几轮或 --force。
 MAX_PER_RUN = 3
 LOG_ENTRY = re.compile(r"^-\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s")
+_THREAD_CLAIM_LOCK = threading.Lock()
 
 
 def _parse_stamp(value: str) -> datetime | None:
@@ -144,12 +146,13 @@ def dispatch(
     """Atomically claim and dispatch one task; return whether a hook was/would be fired.
 
     The cross-process lock deliberately covers the last reread, full eligibility check,
-    attempt reservation, optional #auto frontmatter claim, and hook invocation. A failed
-    hook consumes its reserved attempt, preventing concurrent cron processes from racing.
+    optional #auto frontmatter claim, hook invocation, and successful-attempt accounting.
     """
-    lock_path = vault / ".tv-dispatch.lock"
+    lock_path = vault / ".taskvault" / "dispatch.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as lock:
+    # flock serializes cron processes. The in-process mutex also makes the contract explicit
+    # for threaded callers/tests on platforms where flock locks are process-associated.
+    with _THREAD_CLAIM_LOCK, lock_path.open("a+", encoding="utf-8") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         metadata, body = read_frontmatter(path)
         claim_now = now_shanghai()
@@ -165,14 +168,6 @@ def dispatch(
         task_id = str(metadata["id"])
         claim_stamp = claim_now.isoformat(timespec="seconds")
 
-        # Reserve before invoking the hook. update_ledger rereads while the dispatch lock is
-        # held, so another backstop cannot pass the same eligibility/count check.
-        def reserve(ledger: dict[str, Any]) -> None:
-            previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
-            ledger["dispatch"][task_id] = {"count": previous + 1, "last_at": claim_stamp}
-
-        update_ledger(vault, reserve)
-
         tags = metadata.get("tags") or []
         if isinstance(tags, list) and "auto" in tags and not metadata.get("dispatched"):
             # Use only the just-reread metadata/body as the write source and mutate one field.
@@ -182,6 +177,14 @@ def dispatch(
             instruction = section(body, "## 委派")
 
         run_hook(hook, path, metadata, instruction)
+
+        # Contract: only a successful hook advances the attempt ledger. This remains inside
+        # the claim lock, so the next claimant observes the updated count and last_at.
+        def record_success(ledger: dict[str, Any]) -> None:
+            previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
+            ledger["dispatch"][task_id] = {"count": previous + 1, "last_at": claim_stamp}
+
+        update_ledger(vault, record_success)
         print(f"dispatched {metadata['title']} → {metadata.get('assignee')}")
         return True
 

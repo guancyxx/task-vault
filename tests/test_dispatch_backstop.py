@@ -1,6 +1,7 @@
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -156,12 +157,47 @@ class AtomicDispatch(unittest.TestCase):
             hook.assert_not_called()
         self.assertNotIn("dispatched", read_frontmatter(self.path)[0])
 
-    def test_attempt_is_reserved_before_hook(self):
-        def assert_reserved(*_args):
-            self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
+    def test_attempt_is_recorded_after_hook_success(self):
+        def assert_not_recorded(*_args):
+            self.assertNotIn("t1", load_ledger(self.vault)["dispatch"])
 
-        with patch("scripts.dispatch_backstop.run_hook", side_effect=assert_reserved):
+        with patch("scripts.dispatch_backstop.run_hook", side_effect=assert_not_recorded):
             self.assertTrue(self._dispatch())
+        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
+
+    def test_failed_hook_does_not_consume_attempt(self):
+        with patch("scripts.dispatch_backstop.run_hook", side_effect=RuntimeError("boom")):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                self._dispatch()
+        self.assertNotIn("t1", load_ledger(self.vault)["dispatch"])
+
+    def test_two_concurrent_claims_only_dispatch_once(self):
+        entered = threading.Event()
+        release = threading.Event()
+        results = []
+
+        def slow_hook(*_args):
+            entered.set()
+            self.assertTrue(release.wait(2))
+
+        def worker():
+            results.append(dispatch(self.vault, self.path, "hook", False, 30))
+
+        with patch("scripts.dispatch_backstop.now_shanghai", return_value=NOW), patch(
+            "scripts.dispatch_backstop.run_hook", side_effect=slow_hook
+        ) as hook:
+            first = threading.Thread(target=worker)
+            second = threading.Thread(target=worker)
+            first.start()
+            self.assertTrue(entered.wait(2))
+            second.start()
+            release.set()
+            first.join(2)
+            second.join(2)
+
+        self.assertEqual(sorted(results), [False, True])
+        self.assertEqual(hook.call_count, 1)
+        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
 
     def test_attempts_advance_zero_to_three_then_stop(self):
         with patch("scripts.dispatch_backstop.run_hook") as hook:
@@ -179,13 +215,6 @@ class AtomicDispatch(unittest.TestCase):
                 self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], expected)
             self.assertFalse(self._dispatch())
             self.assertEqual(hook.call_count, 3)
-
-    def test_failed_hook_still_consumes_reserved_attempt(self):
-        with patch("scripts.dispatch_backstop.run_hook", side_effect=RuntimeError("boom")):
-            with self.assertRaisesRegex(RuntimeError, "boom"):
-                self._dispatch()
-        self.assertEqual(load_ledger(self.vault)["dispatch"]["t1"]["count"], 1)
-
 
 if __name__ == "__main__":
     unittest.main()
