@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import re
 import sys
 from datetime import datetime, timedelta
@@ -131,32 +132,58 @@ def _iter_tasks(tasks_dir: Path):
             yield path, metadata, body
 
 
-def dispatch(vault: Path, path: Path, metadata: dict[str, Any], body: str, hook: str, dry_run: bool) -> None:
-    instruction = section(body, "## 委派")
-    if dry_run:
-        print(f"would-dispatch {metadata['title']} → {metadata.get('assignee')}")
-        return
-    tags = metadata.get("tags") or []
-    if isinstance(tags, list) and "auto" in tags and not metadata.get("dispatched"):
-        # Contract §9 exception: #auto first claim is the only backstop path allowed to create
-        # dispatched. Reread immediately before the atomic frontmatter write to avoid lost updates.
+def dispatch(
+    vault: Path,
+    path: Path,
+    hook: str,
+    dry_run: bool,
+    threshold_minutes: int,
+    *,
+    force: bool = False,
+) -> bool:
+    """Atomically claim and dispatch one task; return whether a hook was/would be fired.
+
+    The cross-process lock deliberately covers the last reread, full eligibility check,
+    attempt reservation, optional #auto frontmatter claim, and hook invocation. A failed
+    hook consumes its reserved attempt, preventing concurrent cron processes from racing.
+    """
+    lock_path = vault / ".tv-dispatch.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         metadata, body = read_frontmatter(path)
-        metadata["dispatched"] = now_shanghai().isoformat(timespec="seconds")
-        write_frontmatter(path, metadata, body)
-        metadata, body = read_frontmatter(path)  # verify/read back before firing the hook
+        claim_now = now_shanghai()
+        current_ledger = load_ledger(vault)
+        if not force and not needs_redispatch(metadata, body, current_ledger, claim_now, threshold_minutes):
+            return False
+
         instruction = section(body, "## 委派")
-    run_hook(hook, path, metadata, instruction)
-    task_id = str(metadata["id"])
+        if dry_run:
+            print(f"would-dispatch {metadata['title']} → {metadata.get('assignee')}")
+            return True
 
-    def mutate(ledger: dict[str, Any]) -> None:
-        previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
-        ledger["dispatch"][task_id] = {
-            "count": previous + 1,
-            "last_at": now_shanghai().isoformat(timespec="seconds"),
-        }
+        task_id = str(metadata["id"])
+        claim_stamp = claim_now.isoformat(timespec="seconds")
 
-    update_ledger(vault, mutate)
-    print(f"dispatched {metadata['title']} → {metadata.get('assignee')}")
+        # Reserve before invoking the hook. update_ledger rereads while the dispatch lock is
+        # held, so another backstop cannot pass the same eligibility/count check.
+        def reserve(ledger: dict[str, Any]) -> None:
+            previous = int(ledger["dispatch"].get(task_id, {}).get("count", 0))
+            ledger["dispatch"][task_id] = {"count": previous + 1, "last_at": claim_stamp}
+
+        update_ledger(vault, reserve)
+
+        tags = metadata.get("tags") or []
+        if isinstance(tags, list) and "auto" in tags and not metadata.get("dispatched"):
+            # Use only the just-reread metadata/body as the write source and mutate one field.
+            metadata["dispatched"] = claim_stamp
+            write_frontmatter(path, metadata, body)
+            metadata, body = read_frontmatter(path)  # verified source passed to the hook
+            instruction = section(body, "## 委派")
+
+        run_hook(hook, path, metadata, instruction)
+        print(f"dispatched {metadata['title']} → {metadata.get('assignee')}")
+        return True
 
 
 def main() -> int:
@@ -174,8 +201,7 @@ def main() -> int:
 
     if args.force:
         path = args.force if args.force.is_absolute() else args.vault / args.force
-        metadata, body = read_frontmatter(path)
-        dispatch(args.vault, path, metadata, body, hook, args.dry_run)
+        dispatch(args.vault, path, hook, args.dry_run, int(config.get("backstop_minutes", 30)), force=True)
         return 0
 
     now = now_shanghai()
@@ -187,9 +213,9 @@ def main() -> int:
             if actions >= MAX_PER_RUN:
                 print(f"capped at {MAX_PER_RUN}/run, still eligible: {metadata['title']}")
                 continue
-            dispatch(args.vault, path, metadata, body, hook, args.dry_run)
-            ledger = load_ledger(args.vault)  # 重读：dispatch 刚写过 ledger
-            actions += 1
+            if dispatch(args.vault, path, hook, args.dry_run, threshold):
+                ledger = load_ledger(args.vault)  # 重读：dispatch 刚写过 ledger
+                actions += 1
     print(f"actions={actions}")
     return 0
 
