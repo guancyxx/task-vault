@@ -8,7 +8,7 @@
 // Phases:
 //   dispatched — `dispatched` set ∧ no「接单」entry yet (agent has not picked up)
 //   working    —「接单」logged ∧ the NEWEST progress entry is not a 卡点
-//   stuck      — the newest progress entry is a「卡点」(needs human attention)
+//   stuck      —「接单」logged ∧ the newest progress entry is a「卡点」
 //   review     — status=review (agent finished, waiting for user confirmation)
 
 import type { Task } from './types';
@@ -56,19 +56,21 @@ export function agentProgress(task: Task, body: string): AgentProgress | null {
   const entries = parseLogEntries(body);
   // newest-first per the write protocol (recordEntry inserts at the section head)
   const newest = entries[0];
+  const accepted = entries.some((e) => e.text.includes('接单'));
 
   if (task.status === 'todo') {
     // Not picked up: a real dispatch exists but no 接单 after (or without) it.
-    const accepted = entries.some((e) => e.text.includes('接单'));
     if (task.dispatched && !accepted) return { phase: 'dispatched' };
     return null; // default-ownership todo (assignee never dispatched) is not agent-active
   }
 
-  if (newest && newest.text.includes('卡点')) {
-    return { phase: 'stuck', lastActivity: newest.stamp };
-  }
-
   if (task.status === 'doing' || task.status === 'waiting') {
+    // Status alone is not proof an agent picked the task up. Without the load-bearing
+    // 接单 record, retain the dispatched phase when possible, otherwise show no phase.
+    if (!accepted) return task.dispatched ? { phase: 'dispatched' } : null;
+    if (newest && newest.text.includes('卡点')) {
+      return { phase: 'stuck', lastActivity: newest.stamp };
+    }
     return { phase: 'working', lastActivity: newest?.stamp };
   }
 

@@ -54,10 +54,10 @@ cat > "$PROMPT_FILE" <<EOF
 
 1. 先落「接单」记录并把 frontmatter 的 status 改成 doing
 2. 执行中即时追加执行记录（决策/卡点当场写，别攒到最后）
-3. 完成 → status: done（终态 hook 自动接归档，不用手动归档）
+3. 完成 → status: review；写 **doing→review** 迁移记录与交付摘要，等待用户确认
 4. 做不完 → 留 [卡点] 记录 + status: waiting，写清缺什么
 
-收尾规则：若任务 tags 含 auto，或 assignee≠user 且非用户当面委派，完成时 status 只能置 review 不可置 done；写 **doing→review** 迁移记录并附交付摘要（做了什么/产出在哪/需要用户确认什么），然后停下等用户复核。
+收尾规则：agent 一律只能收尾到 review，不可置 done；仅插件本地用户操作或 Reminders 勾选等用户确认通道可写 done。交付摘要写清做了什么/产出在哪/需要用户确认什么，然后停下等用户复核。
 
 你是无人值守跑的：没有人能在中途批准权限。白名单外的命令会被拒绝——被拒就按第 4 条
 留卡点写清需要什么，不要绕过，也不要假装做完了。
@@ -98,4 +98,3 @@ esac
 
 log "dispatched $ASSIGNEE id=$TASK_ID cwd=$WORKDIR log=$RUN_LOG title=$TITLE"
 exit 0
-

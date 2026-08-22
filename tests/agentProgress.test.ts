@@ -31,6 +31,17 @@ describe('agentProgress (FR-028)', () => {
     });
   });
 
+  it('does not derive working from doing/waiting without an acceptance record', () => {
+    expect(agentProgress(task({ status: 'doing' }), log())).toBeNull();
+    expect(agentProgress(task({ status: 'waiting' }), log('- 2026-08-19 11:00 · `cc`', '  调研中'))).toBeNull();
+  });
+
+  it('falls back to dispatched when doing has no acceptance record', () => {
+    expect(agentProgress(task({ status: 'doing', dispatched: '2026-08-19T10:00' }), log())).toEqual({
+      phase: 'dispatched',
+    });
+  });
+
   it('derives stuck when the newest entry is a blocker', () => {
     const body = log(
       '- 2026-08-19 12:00 · **卡点** · `cc`',
