@@ -111,7 +111,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 ## Requirements（FR，稳定 ID）
 
 数据与状态：
-- FR-001 任务文件格式：每任务一 md 文件（`03 Tasks/` 顶层，`YYYY-MM-DD-<slug>.md`），frontmatter 按 schema v1.1 §4（id/title/status/start/due/remind/created/started/completed/priority/source/assignee/dispatched/project/area/parent/blocked-by/tags/mirror）
+- FR-001 任务文件格式：每任务一 md 文件（`03 Tasks/<项目>/<YYYY-MM-DD>/<slug>.md` 项目/日期两级目录，文件名不带日期前缀；项目文件夹 = project 字段剥 wikilink → 首个 `repo/*` 标签 → `_未分类`，日期文件夹 = created 的日期部分），frontmatter 按 schema v1.1 §4（id/title/status/start/due/remind/created/started/completed/priority/source/assignee/dispatched/project/area/parent/blocked-by/tags/mirror）
 - FR-002 身份不变性：除 `id` 外任意字段/正文编辑不改变任务身份；镜像映射只认 id
 - FR-003 八态状态机（inbox/todo/doing/review/waiting/blocked/done/cancelled）+ 合法转移表 + created/started/completed 自动维护
 - FR-004 blocked 由 blocked-by 推导（依赖未终态即 blocked），不可手设；依赖终态自动解除
@@ -154,7 +154,7 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 
 ## Assumptions（默认已选，可否决）
 
-1. 任务文件目录 = `03 Tasks/` 顶层；日文件归档至 `03 Tasks/_archive/`（FR-025）
+1. 任务文件目录 = `03 Tasks/<项目>/<YYYY-MM-DD>/` 两级；日文件归档至 `03 Tasks/_archive/`（FR-025）
 2. hook ledger 与运行时状态放 `vault/.taskvault/`（插件与 Python 同步器共用的唯一 JSON，原子写）
 3. 弹窗实现取 Obsidian Modal（居中快捷弹窗），非锚定气泡——行为验收以 SC-010 为准，实现形态不作约束
 4. 同步器保持进程外 Python（cron */5），插件内不做 Reminders 同步——Obsidian 关闭时管道仍活
