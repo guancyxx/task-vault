@@ -325,7 +325,7 @@
 | H7 | 项目面板（统计卡片 + 项目详情视图） | M | manual | FR-035 | ✅ 2026-08-23（PR #16，实机 11 卡片验证）|
 | H8 | 日程面板 + 日历视图（月网格） | L | manual | FR-036 | ✅ 2026-08-23（PR #20，实机 42 格/15 chip/导航验证）|
 | H9 | README：Apple Reminders sync 章 + 权限披露章 | S | — | FR-033/037 | ✅ 2026-08-23（PR #14）|
-| H10 | 0.3.0 发版：版本号 + tag + release + attest，部署 vault 后删 Calendar 插件 | S | release+部署核验 | FR-033/036 | ☐ |
+| H10 | 0.3.0 发版：版本号 + tag + release + attest，部署 vault 后删 Calendar 插件 | S | release+部署核验 | FR-033/036 | ✅ 2026-08-24（PR #23，tag/release/三资产 attest 验证过；Calendar 删除待用户确认）|
 | H11 | README 双语（中英对照 + 语言切换锚点） | M | — | FR-038 | ✅ 2026-08-23（PR #18）|
 | H12 | UI 本地化 i18n（字典层 + 设置页语言下拉 + 全文案覆盖） | M | unit+manual | FR-039 | ✅ 2026-08-23（PR #19，实机 zh/en 双向验证）|
 
