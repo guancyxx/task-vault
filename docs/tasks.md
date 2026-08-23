@@ -321,9 +321,9 @@
 | H3 | 六命令 + 默认热键 + README 修正 | M | unit+manual | FR-032 | ☐ |
 | H4 | 发布卫生：描述对齐 + 12 条可修 Warning + CONTRIBUTING + attest | S | checker | FR-033 | ✅ 2026-08-23（PR #17，attest 留 H10 发版时做）|
 | H5 | agent skill 入仓（skills/task-vault-agent）+ README For AI agents | M | — | FR-034 | ☐ |
-| H6 | 内置 localhost API（四端点 + 设置页 + token） | L | unit | FR-034 | ☐ |
+| H6 | 内置 localhost API（四端点 + 设置页 + token） | L | unit | FR-034 | ✅ 2026-08-23（PR #21+#22，实机 curl 四端点+门禁 409 验证）|
 | H7 | 项目面板（统计卡片 + 项目详情视图） | M | manual | FR-035 | ✅ 2026-08-23（PR #16，实机 11 卡片验证）|
-| H8 | 日程面板 + 日历视图（月网格） | L | manual | FR-036 | ☐ |
+| H8 | 日程面板 + 日历视图（月网格） | L | manual | FR-036 | ✅ 2026-08-23（PR #20，实机 42 格/15 chip/导航验证）|
 | H9 | README：Apple Reminders sync 章 + 权限披露章 | S | — | FR-033/037 | ✅ 2026-08-23（PR #14）|
 | H10 | 0.3.0 发版：版本号 + tag + release + attest，部署 vault 后删 Calendar 插件 | S | release+部署核验 | FR-033/036 | ☐ |
 | H11 | README 双语（中英对照 + 语言切换锚点） | M | — | FR-038 | ✅ 2026-08-23（PR #18）|
