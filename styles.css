@@ -57,18 +57,20 @@
 
 /* ---------- rows ---------- */
 /* Card layout: pinned left rail (fold/checkbox/glyph) + fluid right column with a
-   wrapping multi-line title and a meta strip. Status rides a 3px left accent bar —
-   bold/masculine high-contrast treatment (design pref 2026-08-19). */
+   wrapping multi-line title and a meta strip. Status rides a 4px left accent bar —
+   painted as a ::before rail (not border-left) so hover can brighten *only* the rail
+   and the legend can reuse the exact same bar (H2 / FR-031). Color per state comes
+   from a single `--tv-rail` token; cancelled overrides with a diagonal stripe. */
 .tv-row {
   position: relative;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 6px 8px 6px 10px;
+  padding: 6px 8px 6px 12px;
   margin: 3px 0;
   border-radius: 6px;
   border: 1px solid var(--background-modifier-border);
-  border-left-width: 3px;
+  overflow: hidden;
   background: var(--background-primary);
   font-size: var(--font-ui-small);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
@@ -79,15 +81,42 @@
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
   transform: translateY(-1px);
 }
-/* status accent: left border rail, per state */
-.tv-status-inbox   { border-left-color: var(--text-faint); }
-.tv-status-todo    { border-left-color: var(--color-accent); }
-.tv-status-doing   { border-left-color: var(--color-blue); }
-.tv-status-review  { border-left-color: rgba(var(--color-purple-rgb, 158, 122, 255), 1); }
-.tv-status-waiting { border-left-color: var(--color-yellow); }
-.tv-status-blocked { border-left-color: var(--color-red); }
-.tv-status-done    { border-left-color: var(--color-green); }
-.tv-status-cancelled { border-left-color: var(--text-faint); }
+
+/* status color rail — shared painter for rows and legend samples (single source). */
+.tv-row::before,
+.tv-legend-rail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--tv-rail, var(--text-faint));
+  transition: filter 0.15s ease;
+}
+/* hover: rail brightness micro-lift, scoped to the bar so the row is untouched */
+.tv-row:hover::before {
+  filter: brightness(1.25);
+}
+/* status accent tokens: single source read by both row and legend rails */
+.tv-status-inbox   { --tv-rail: var(--text-faint); }
+.tv-status-todo    { --tv-rail: var(--color-accent); }
+.tv-status-doing   { --tv-rail: var(--color-blue); }
+.tv-status-review  { --tv-rail: rgba(var(--color-purple-rgb, 158, 122, 255), 1); }
+.tv-status-waiting { --tv-rail: var(--color-yellow); }
+.tv-status-blocked { --tv-rail: var(--color-red); }
+.tv-status-done    { --tv-rail: var(--color-green); }
+/* cancelled: grey diagonal stripe rail — distinct from flat grey inbox.
+   Scoped to the two real rail hosts (row, legend sample) so other tv-status-*
+   consumers (e.g. .tv-panel cards) never grow a stripe. */
+.tv-row.tv-status-cancelled::before,
+.tv-legend-rail.tv-status-cancelled::before {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--text-faint) 0 2px,
+    transparent 2px 4px
+  );
+}
 
 .tv-rail {
   display: flex;
@@ -298,6 +327,16 @@
   align-items: center;
   gap: 8px;
   padding: 2px 0;
+}
+/* legend status sample: same 4px rail element the rows render (zero drift) */
+.tv-legend-rail {
+  position: relative;
+  flex-shrink: 0;
+  width: 4px;
+  align-self: stretch;
+  min-height: 1.4em;
+  border-radius: 2px;
+  overflow: hidden;
 }
 .tv-legend-label {
   color: var(--text-muted);
