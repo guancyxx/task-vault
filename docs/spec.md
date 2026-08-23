@@ -108,6 +108,16 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - SC-010 弹窗快速填入（决策/评论/卡点）→1s 内按协议格式追加进执行记录区
 - SC-011 命令「Task Vault: 记一条执行记录」：当前文件为已索引任务文件时可用了（非任务文件时命令置灰）；提交后条目按协议格式落盘区首，与侧边栏弹窗写入逐字符一致
 
+v0.3 增补（对应 FR-031~037）：
+
+- SC-012 色条语义：八态各渲染独立色条（含 cancelled 斜纹），行 tooltip 报状态，图例面板色条样本与行渲染同源（STATUS_META），抽 3 态实机核对
+- SC-013 七命令热键：默认绑定 L/D/C/K/S/A（Mod+Shift）注册成功，热键面板可改绑；非任务文件时全部置灰；决策/评论/卡点命令提交后条目带对应类型段
+- SC-014 发布卫生：manifest/package/README 无「7-state」残留；社区页 Scorecard 的可修 Warning（as 断言/空 interface/正则控制字符/getSettingDefinitions/onload 返回）清零；CONTRIBUTING.md 存在；release 资产带 attestations
+- SC-015 agent skill：仓库 skills/task-vault-agent/SKILL.md 完整覆盖格式/协议/门禁/坑；README 有「For AI agents」入口
+- SC-016 内置 API：默认关；开启后 curl 四端点全通（POST /tasks 建档、GET 读、PATCH 走状态机与门禁——agent token 置 done 被拒转 review、POST log 落协议条目）；无 token 401；非本机回环拒连
+- SC-017 面板：项目面板卡片统计与库内实测一致（抽 2 项目）；日程面板今日时间轴正确（timed/all-day 排序、过期红）；日历月网格前后月导航正确、chip 点击开文档
+- SC-018 文档：README 含「Apple Reminders sync」章节与权限披露章节；无内部路径/个人 cron 泄漏（发布前 grep 扫描）
+
 ## Requirements（FR，稳定 ID）
 
 数据与状态：
@@ -151,7 +161,17 @@ export function transition(t: Task, to: Status, actor: Actor, now: Date): Transi
 - FR-025 迁移脚本：31 条开放任务→任务文件（UUID 生成、emoji 日期/`#src`/优先级→frontmatter、dry-run 报告先行）；历史日文件→`03 Tasks/_archive/` 只读
 - FR-026 cron/agent 写入协议适配：6 个 cron 中产生/勾选任务者改写为新协议；obsidian-vault / obsidian-task-lifecycle skill 更新；Dashboard DQL 面板与 #hermes→ntfy→订阅器触发链标记退役
 
-明确不在 v1（越界即拒绝）：递归任务、看板、统计面板、任务关系图、多用户、外部数据库、移动端 Obsidian 支持。
+v0.3 增补（2026-08-23 六需求，任务 36c00435）：
+
+- FR-031 色条状态语义（扩展 FR-016）：侧边栏条目左侧色条为状态主视觉通道。八态全差异化：inbox=灰、todo=accent、doing=蓝、review=紫、waiting=琥珀、blocked=红、done=绿、cancelled=灰斜纹（CSS repeating-linear-gradient，与 inbox 区分）；色条 4px。行加 title tooltip（`状态：<label>（<status>）`）。图例面板改渲染真实色条样本，复用 STATUS_META 单一事实源
+- FR-032 命令体系与默认热键（扩展 FR-027）：七命令全部注册默认热键（用户 2026-08-23 拍板 L/D/C/K/S/A 字母组，README 注明可改绑）：记一条进展 Cmd+Shift+L（修复 08-19 遗留的默认热键缺失）、快捷标注·决策 Cmd+Shift+D、快捷标注·评论 Cmd+Shift+C、快捷标注·卡点 Cmd+Shift+K、设置状态 Cmd+Shift+S（合法转移目标点选，复用 TRANSITIONS）、委派 Cmd+Shift+A（agent 选择+指令，复用委派面板逻辑）。全部 checkCallback 门控（当前文件为已索引任务才可用），写路径统一走 appendQuick/setStatus/delegate canonical seam
+- FR-033 发布卫生（R3）：manifest.json / package.json / README 描述与八态事实对齐；TS 源清掉社区市场自动扫描的 14 条 Warning 中可修的 11 条（多余 as 断言×7、\u0000 正则字面量×1、空 interface×2、getSettingDefinitions 声明式设置×1、onload 返回类型×1）；补 CONTRIBUTING.md；发布流程加 gh attestation（artifact attestations）。fs/child_process/vault 枚举/clipboard 属架构能力（hooks/索引/复制），README「权限与能力」章节披露，不消除
+- FR-034 agent skill + 内置接口（R4，两阶段）：阶段一=仓库内 `skills/task-vault-agent/SKILL.md`（任务文件格式、写入协议改前重读/执行记录只追加/条目时间戳空格分隔、委派协议、review 门禁与 FR-030a citation、坑清单）+ README「For AI agents」章节；本地 Hermes skill（obsidian-task-lifecycle）保留个人生态部分（cron/state.db 取证）分层不合并。阶段二=插件内置 localhost HTTP API（node:http 零依赖，desktop-only，默认关，设置页开关+token+端口）：POST /tasks（新建，走 capture 解析）、GET /tasks/:id、PATCH /tasks/:id（status 等字段，走 transition）、POST /tasks/:id/log（进展条目，走 appendQuick）；actor 固定为 agent 身份（hermes/cc/codex 按 token 映射）——门禁、状态机、hook 全部生效，agent 不得绕过 review。鉴权 Bearer token；仅绑 127.0.0.1；CORS 关闭；错误 JSON 化
+- FR-035 项目面板（R5a）：右侧栏 ItemView（与驾驶舱并列）。打开时展示全库项目统计：每项目一卡片——开放数（inbox+todo+doing+review+waiting）、过期数、本周完成数、在跑 agent 数、按开放数降序。点卡片在中间区开项目详情（按状态分组渲染 renderTaskRow 树）。项目管理交互（委派/状态/日志）从侧边栏行操作进
+- FR-036 日程面板 + 日历视图（R5b）：日程面板=右侧栏 ItemView，今日全部日程时间轴（timed 按时刻升序在前、all-day 靠后），过期标红；顶部「完整日历」按钮在中间区开日历视图。日历视图=中间区 ItemView 月网格：格内任务 chip（色条同 FR-031 语义，优先级角标），前/后月导航+回今天，点 chip 开任务文档。数据源=Task Vault 任务（due/完成日集合），非 daily notes。取代 Calendar 插件（用户拍板 2026-08-23：上线稳定后删除 vault 内 Calendar 插件）
+- FR-037 Reminders 同步对外说明（R6）：README 新章「Apple Reminders sync」：如实说明 Obsidian 无官方 Reminders 同步；本仓提供 Python 同步器（scripts/reminders_sync.py，macOS + remindctl + cron */5 + 唯一清单「待办」）自建路线的完整配置步骤与依赖清单。代码不改动（remindctl 依赖的解除排为后续任务）
+
+明确不在 v1（越界即拒绝）：递归任务、看板、多用户、外部数据库、移动端 Obsidian 支持。~~统计面板~~（v0.3 起含项目统计与日历视图，FR-035/036）、任务关系图保留排除。
 
 ## Assumptions（默认已选，可否决）
 

@@ -306,3 +306,25 @@
 - [x] T021 修正 spec.md FR-001 与 AGENTS.md §5 的目录布局描述 per FR-001 (contradicts) — 两处仍写「03 Tasks/ 顶层平铺 YYYY-MM-DD-slug」，实际定稿为 项目/日期 两级；连带 Dashboard.md 迁移注记里的 `<项目>/<年-月>` ✅ 2026-08-23
 - [ ] T022 处置 3 个非标准文件 per FR-001 (unrequested) — `03 Tasks/2026-08-20.md`（旧格式日文件）、`AUDIT-pr1153.md`（无 frontmatter 审计报告）、`睿源智能/logo/README.md`：留或移待用户拍板，agent 不擅动
 - [x] T023 清理迁移期孤儿 Reminders（34 个）per FR-023 (partial) — 契约规定只报告不自动删；列出清单供用户一次性确认删除 ✅ 2026-08-21
+
+---
+
+## Phase H — v0.3 六需求迭代（2026-08-23 启动，任务 36c00435）
+
+> 用户六需求：色条语义 / 快捷命令 / 发布告警 / agent skill+接口 / 项目+日程面板 / Reminders 同步说明。
+> 拍板：内置接口、热键 L/D/C/K/S/A、删 Calendar 插件、warning 社区页实测（Review=Satisfactory/18 issues）。
+
+| # | 任务 | 量级 | 测试 | Traces-to | 状态 |
+|---|---|---|---|---|---|
+| H1 | spec 增补 FR-031~037 + SC-012~018 + 边界修订 | S | — | FR-031~037 | ✅ 2026-08-23 |
+| H2 | 色条语义：CSS 八态差异化 + tooltip + 图例重做 | S | manual | FR-031 | ☐ |
+| H3 | 七命令 + 默认热键 + README 修正 | M | unit+manual | FR-032 | ☐ |
+| H4 | 发布卫生：描述对齐 + 11 条可修 Warning + CONTRIBUTING + attest | S | checker | FR-033 | ☐ |
+| H5 | agent skill 入仓（skills/task-vault-agent）+ README For AI agents | M | — | FR-034 | ☐ |
+| H6 | 内置 localhost API（四端点 + 设置页 + token） | L | unit | FR-034 | ☐ |
+| H7 | 项目面板（统计卡片 + 项目详情视图） | M | manual | FR-035 | ☐ |
+| H8 | 日程面板 + 日历视图（月网格） | L | manual | FR-036 | ☐ |
+| H9 | README：Apple Reminders sync 章 + 权限披露章 | S | — | FR-037 | ☐ |
+| H10 | 0.3.0 发版：版本号 + tag + release + attest，部署 vault 后删 Calendar 插件 | S | — | FR-033/036 | ☐ |
+
+依赖：H1 → {H2, H3, H4} 可并行 → H5/H6 → H7 → H8 → H9 → H10。
