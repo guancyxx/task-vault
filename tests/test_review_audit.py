@@ -13,6 +13,10 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+try:
+    from unittest import mock as unittest_mock
+except ImportError:  # py<3.3
+    unittest_mock = None
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -285,6 +289,77 @@ print('LATER', later_ok, later_reason)
             later_line = [l for l in r.stdout.splitlines() if l.startswith("LATER")][0]
             self.assertTrue(grace_line.startswith("GRACE True"), grace_line)
             self.assertTrue(later_line.startswith("LATER False"), later_line)
+
+
+class TestNoEdgeAndAnchoring(unittest.TestCase):
+    """审计 R1 闭环（全行锚定）+ C2（无边形态）。"""
+
+    def test_citation_rejects_junk(self):
+        for line in (
+            'xx user-confirm: session=s msg=1 quote="做"',       # 前缀垃圾
+            'user-confirm: session=s msg=1 quote="做" trailing',  # 尾随垃圾
+        ):
+            self.assertIsNone(USER_CONFIRM.search(line), line)
+
+    def test_citation_accepts_standalone_line(self):
+        line = 'user-confirm: session=s msg=1 quote="做"'
+        self.assertIsNotNone(USER_CONFIRM.search(line))
+        # 缩进两格（执行记录条目正文形态）也算独立行
+        self.assertIsNotNone(USER_CONFIRM.search("  " + line))
+
+    def test_no_edge_body_citation_not_a_confirmation(self):
+        # 无 done 迁移边：正则能匹配到 citation，但主流程的无边路径只认 user actor /
+        # Reminders 标记（防复用历史 citation）——这里锁定正则行为，无边路径在 main() 里，
+        # 由 test_main_no_edge_done_without_user_confirmation 覆盖。
+        b = (
+            "## 执行记录\n\n"
+            "- 2026-08-23 07:00 · `hermes`\n  user-confirm: session=%s msg=1 quote=\"做\"\n" % SID
+        )
+        es = entries(b)
+        self.assertIsNotNone(USER_CONFIRM.search(es[0][2]))
+
+
+class TestMainNoEdgePaths(unittest.TestCase):
+    """main() 的无边 done 路径：无用户确认 → 危险项；有 Reminders → 放过。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.vault = Path(self.tmp.name)
+
+    def _write_task(self, name, body):
+        d = self.vault / "03 Tasks" / "proj"
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / f"{name}.md"
+        p.write_text(
+            "---\nid: %s\ntitle: %s\nstatus: done\nassignee: hermes\n---\n%s" % (name, name, body),
+            encoding="utf-8",
+        )
+        return p
+
+    def test_no_edge_done_without_user_confirmed_flagged(self):
+        self._write_task("t1", "## 执行记录\n\n- 2026-08-23 07:00 · `hermes`\n  直接写 done\n")
+        with unittest_mock.patch("scripts.review_audit.TASKS", self.vault / "03 Tasks"):
+            import contextlib, io
+            from scripts import review_audit as ra
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = ra.main()
+        self.assertEqual(rc, 0)
+        self.assertIn("done 无迁移边且无用户确认", buf.getvalue())
+
+    def test_no_edge_done_with_reminders_not_flagged(self):
+        self._write_task(
+            "t2", "## 执行记录\n\n- 2026-08-23 07:00 · `hermes`\n  Reminders 里勾了完成\n"
+        )
+        with unittest_mock.patch("scripts.review_audit.TASKS", self.vault / "03 Tasks"):
+            import contextlib, io
+            from scripts import review_audit as ra
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = ra.main()
+        self.assertEqual(rc, 0)
+        self.assertIn("clean", buf.getvalue())
 
 
 if __name__ == "__main__":

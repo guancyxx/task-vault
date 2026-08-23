@@ -77,6 +77,21 @@ describe('chat-confirmation citation channel (FR-030a)', () => {
     expect(shouldGuardExternalDone('review', doneTask(), prose)).toBe(true);
   });
 
+  it('rejects citations carrying prefix/trailing junk on the line (audit R1 closure)', () => {
+    const prefix =
+      '## 执行记录\n\n- 2026-08-23 07:10 · **review→done** · `hermes`\n  xx user-confirm: session=s msg=1 quote="做"\n';
+    expect(shouldGuardExternalDone('review', doneTask(), prefix)).toBe(true);
+    const trailing =
+      '## 执行记录\n\n- 2026-08-23 07:10 · **review→done** · `hermes`\n  user-confirm: session=s msg=1 quote="做" trailing\n';
+    expect(shouldGuardExternalDone('review', doneTask(), trailing)).toBe(true);
+  });
+
+  it('does not accept citations when the log has no done edge (audit C2)', () => {
+    const body =
+      '## 执行记录\n\n- 2026-08-23 07:00 · `hermes`\n  user-confirm: session=20260823_064634_c34e81 msg=64200 quote="做"\n';
+    expect(shouldGuardExternalDone('doing', doneTask(), body)).toBe(true);
+  });
+
   it('rejects a citation that predates the done edge', () => {
     // 倒序区：更早的条目写在 done 条目下面，不算确认
     const body =

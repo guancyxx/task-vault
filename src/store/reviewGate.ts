@@ -22,9 +22,11 @@ export const AUTO_ACTOR = 'hermes' as const;
 
 const USER_ACTOR = /·\s*`user`/;
 const TO_DONE = /\*\*[^*\n]*→done\*\*/;
-// FR-030a citation. Escaped-quote grammar: [^"\\\n] or backslash-escaped any-char, at least one.
+// FR-030a citation — full-line syntax, anchored (audit R1 closure): the citation must be a
+// standalone line; prefix/trailing junk on the same line is rejected on both sides.
+// Escaped-quote grammar: [^"\\\n] or backslash-escaped any-char, at least one.
 // Empty quote ("") intentionally does not match — it would substring-match anything.
-const USER_CONFIRM = /user-confirm:\s*session=([\w.-]+)\s+msg=(\d+)\s+quote="((?:[^"\\\n]|\\.)+)"/;
+const USER_CONFIRM = /^[ \t]*user-confirm:\s*session=([\w.-]+)\s+msg=(\d+)\s+quote="((?:[^"\\\n]|\\.)+)"[ \t]*$/m;
 const REMINDERS_MARK = 'Reminders 里勾了完成';
 const GATED_EDGE = /\*\*done→review\*\*\s*·\s*`hermes`/;
 
@@ -38,9 +40,10 @@ export function hasUserDoneConfirmation(body: string): boolean {
   if (doneIndex < 0) {
     // No done edge in the log (e.g. Reminders sync set status directly): there is no edge to
     // window against — judge over the whole log (legacy shape, kept for sync compatibility).
+    // Citations are NOT accepted here: they must anchor to a done edge, otherwise an old
+    // citation from a previous cycle could be reused (audit C2).
     if (entries.some((entry) => USER_ACTOR.test(headlineOf(entry.text)))) return true;
-    if (entries.some((entry) => entry.text.includes(REMINDERS_MARK))) return true;
-    return entries.some((entry) => USER_CONFIRM.test(entry.text));
+    return entries.some((entry) => entry.text.includes(REMINDERS_MARK));
   }
   // Logs are newest-first. The done entry itself and smaller indices are chronologically
   // at/after the done edge. All channels are judged in this window only — markers that

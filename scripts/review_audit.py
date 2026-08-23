@@ -46,9 +46,11 @@ INJECTED_PREFIXES = ("[ASYNC", "[OUT-OF-BAND")
 # 迁移条目行：- 2026-08-22 19:20 · **doing→done** · `hermes`
 MIGRATION = re.compile(r"^-\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*·\s*\*\*(\w+)→(\w+)\*\*\s*·\s*`(\w+)`")
 ANY_ENTRY = re.compile(r"^-\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s")
-# 与插件 reviewGate.ts 的 USER_CONFIRM 同源，勿漂移。quote 转义：\" → "，\\ → \
+# 与插件 reviewGate.ts 的 USER_CONFIRM 同源，勿漂移。全行锚定：前后垃圾拒收（审计 R1 闭环）。
+# quote 转义：\" → "，\\ → \
 USER_CONFIRM = re.compile(
-    r'user-confirm:\s*session=([\w.-]+)\s+msg=(\d+)\s+quote="((?:[^"\\\n]|\\.)+)"'
+    r'^[ \t]*user-confirm:\s*session=([\w.-]+)\s+msg=(\d+)\s+quote="((?:[^"\\\n]|\\.)+)"[ \t]*$',
+    re.M,
 )
 
 
@@ -198,29 +200,39 @@ def main() -> int:
             continue
         es = entries(t["body"])
         if t["status"] == "done":
+            done_edge = None  # C2 修复：无 done 边的退化形态同步入审计（不能只信插件放行）
             for idx, (stamp, headline, text) in enumerate(es):
                 mm = MIGRATION.match(headline)
                 if mm and mm.group(3) == "done":
-                    actor = mm.group(4)
-                    if actor in AGENT_ACTORS:
-                        user_actor, reminders, citations = confirmations(es, idx)
-                        if user_actor or reminders:
-                            break
-                        if citations:
-                            done_stamp = mm.group(1)
-                            bad = []
-                            for c in citations:
-                                ok, reason = checker.verify(c, done_stamp)
-                                if not ok:
-                                    bad.append(f"msg={c[1]}({reason})")
-                            if not bad:
-                                break  # 引用全部核验通过 = 用户已确认
+                    done_edge = (idx, stamp, mm.group(4))
+                    break
+            if done_edge is None:
+                # 无 done 迁移边但 status=done（同步器直改/外部裸写）：整日志窗口，
+                # 只认 user actor 与 Reminders 标记——citation 必须锚定 done 边，
+                # 无边时不可用（防止复用历史 citation）。
+                user_actor = any("`user`" in h for _, h, _ in es)
+                reminders = any(REMINDERS_MARK in tx for _, _, tx in es)
+                if not (user_actor or reminders):
+                    latest = es[0][0] if es else "?"
+                    dangers.append((latest, t["title"], "external", "done 无迁移边且无用户确认"))
+            else:
+                idx, stamp, actor = done_edge
+                if actor in AGENT_ACTORS:
+                    user_actor, reminders, citations = confirmations(es, idx)
+                    if user_actor or reminders:
+                        pass
+                    elif citations:
+                        bad = []
+                        for c in citations:
+                            ok, reason = checker.verify(c, stamp)
+                            if not ok:
+                                bad.append(f"msg={c[1]}({reason})")
+                        if bad:
                             dangers.append(
                                 (stamp, t["title"], actor, "引用核验失败 " + "; ".join(bad))
                             )
-                            break
+                    else:
                         dangers.append((stamp, t["title"], actor, "无用户确认"))
-                    break
         elif t["status"] == "review":
             review_q.append(t["title"])
         else:
