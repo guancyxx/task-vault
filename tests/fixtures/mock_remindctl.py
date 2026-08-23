@@ -51,7 +51,9 @@ elif args and args[0] == "delete":
     if os.environ.get("MOCK_REMINDERS_FAIL_DELETE") == "1":
         raise SystemExit(f"mock delete failure: {identifier}")
     if not any(item["id"] == identifier for item in state["reminders"]):
-        raise SystemExit(f"reminder not found: {identifier}")
+        # Same observable contract as the real remindctl binary (audit N4):
+        # stderr `Reminder not found: "<id>".` + exit 1 (verified 2026-08-23).
+        raise SystemExit(f'Reminder not found: "{identifier}".')
     state["reminders"] = [item for item in state["reminders"] if item["id"] != identifier]
     print(json.dumps({"deleted": identifier}, ensure_ascii=False))
 else:

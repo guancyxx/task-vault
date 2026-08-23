@@ -64,10 +64,12 @@ class ArchiveDailyTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_archive(self, *extra, fail_delete=False):
+    def run_archive(self, *extra, fail_delete=False, extra_env=None):
         env = dict(self.env)
         if fail_delete:
             env["MOCK_REMINDERS_FAIL_DELETE"] = "1"
+        if extra_env:
+            env.update(extra_env)
         return subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "archive_daily.py"), "--remindctl", str(self.mock), *extra],
             check=True,
@@ -196,6 +198,76 @@ class ArchiveDailyTest(unittest.TestCase):
         state = self.mock_state()
         self.assertEqual([r["id"] for r in state["reminders"]], [unlinked_id])
         self.assertNotIn("delete", [call[0] for call in state["calls"] if call])
+
+
+    def write_side_effect_remindctl(self, action: str, target: Path):
+        """Wrap the mock remindctl: on the first `delete` call, mutate `target` first.
+
+        This deterministically lands a concurrent change BETWEEN the archive
+        scan pass and the move loop's reread of the later-sorted candidate.
+        """
+        wrapper = Path(self.temporary.name) / "remindctl-side-effect"
+        wrapper.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, subprocess, sys\n"
+            f"target = {str(target)!r}\n"
+            f"action = {action!r}\n"
+            "if sys.argv[1:2] == ['delete']:\n"
+            "    if action == 'flip':\n"
+            "        text = open(target, encoding='utf-8').read()\n"
+            "        open(target, 'w', encoding='utf-8').write(text.replace('status: done', 'status: doing'))\n"
+            "    else:\n"
+            "        open(target, 'w', encoding='utf-8').write('not frontmatter anymore\\n')\n"
+            f"sys.exit(subprocess.run([sys.executable, {str(self.mock)!r}, *sys.argv[1:]]).returncode)\n",
+            encoding="utf-8",
+        )
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+        return wrapper
+
+    # g. candidate flipped non-terminal between scan and move → skipped, not moved (N3)
+    def test_candidate_flipped_nonterminal_between_scan_and_move_is_skipped(self):
+        first_id = "AAAAAAA1-0000-0000-0000-000000000001"
+        task(self.tasks / "2026-08-19-a.md", str(uuid.uuid4()), "A", "done", "2026-08-20", first_id)
+        later = self.tasks / "2026-08-19-b.md"
+        task(later, str(uuid.uuid4()), "B", "done", "2026-08-20")
+        self.seed_state([reminder(first_id)])
+        wrapper = self.write_side_effect_remindctl("flip", later)
+        result = self.run_archive(extra_env={"MOCK_REMINDERS_STATE": str(self.state)}, *["--remindctl", str(wrapper)])
+        self.assertIn("archive-skip-not-terminal 03 Tasks/2026-08-19-b.md status='doing'", result.stdout)
+        self.assertIn("skipped=1", result.stdout)
+        self.assertIn("files=1", result.stdout)
+        self.assertIn("mirrors-deleted=1", result.stdout)
+        metadata, _ = read_frontmatter(later)
+        self.assertEqual(metadata["status"], "doing")
+        self.assertFalse((self.vault / "98 archive" / "03 Tasks" / "2026-08-19-b.md").exists())
+
+    # h. candidate unreadable at move time → skipped, not moved (N3)
+    def test_candidate_unreadable_at_move_time_is_skipped(self):
+        first_id = "AAAAAAA2-0000-0000-0000-000000000002"
+        task(self.tasks / "2026-08-19-a.md", str(uuid.uuid4()), "A", "done", "2026-08-20", first_id)
+        later = self.tasks / "2026-08-19-b.md"
+        task(later, str(uuid.uuid4()), "B", "done", "2026-08-20")
+        self.seed_state([reminder(first_id)])
+        wrapper = self.write_side_effect_remindctl("break", later)
+        result = self.run_archive(extra_env={"MOCK_REMINDERS_STATE": str(self.state)}, *["--remindctl", str(wrapper)])
+        self.assertIn("archive-skip-unreadable 03 Tasks/2026-08-19-b.md", result.stdout)
+        self.assertIn("skipped=1", result.stdout)
+        self.assertIn("files=1", result.stdout)
+        self.assertEqual(later.read_text(encoding="utf-8"), "not frontmatter anymore\n")
+
+    # i. mock not-found message matches the real remindctl binary (N4)
+    def test_not_found_message_matches_real_remindctl(self):
+        missing_id = "AAAAAAA3-0000-0000-0000-000000000003"
+        task_path = self.tasks / "2026-08-19-missing.md"
+        task(task_path, str(uuid.uuid4()), "Missing mirror", "done", "2026-08-20", missing_id)
+        self.seed_state([])  # mirror points at a reminder that does not exist
+        result = self.run_archive()
+        self.assertIn("mirrors-failed=1", result.stdout)
+        self.assertIn(f'mirror-delete-failed', result.stdout)
+        self.assertIn(f'Reminder not found: "{missing_id}".', result.stdout)
+        archived = self.vault / "98 archive" / "03 Tasks" / "2026-08-19-missing.md"
+        metadata, _ = read_frontmatter(archived)
+        self.assertEqual(metadata["mirror"]["reminders-uuid"], missing_id)
 
 
 if __name__ == "__main__":

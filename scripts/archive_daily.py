@@ -18,6 +18,12 @@ file before it moves into the archive. Delete failures never block archiving.
 Already-archived files are never touched retroactively.
 
 Idempotent + dry-run first. Never touches `03 Tasks/_archive/` or the archive root itself.
+
+Move-time reread (audit N3 fast-follow): every candidate is reread immediately
+before its mirror delete/move. A file that left the terminal state (concurrent
+writer revived/edited it) or became unreadable is skipped, counted as
+`skipped=` in the summary, and left in place — the TOCTOU window between the
+scan pass and the move loop is closed.
 """
 import argparse
 import shutil
@@ -65,6 +71,7 @@ def main() -> int:
     moves: list[tuple[Path, Path, tuple[dict, str]]] = []
     mirrors_deleted = 0
     mirrors_failed = 0
+    skipped = 0
 
     # completed tasks (status done/cancelled), preserving project/date structure
     tasks_dir = VAULT / "03 Tasks"
@@ -80,6 +87,21 @@ def main() -> int:
             moves.append((f, ARCHIVE / rel, (meta, body)))
 
     for src, dst, (meta, body) in moves:
+        # N3 (audit fast-follow): reread the file right before touching it.
+        # The scan pass read (meta, body) up to a full vault traversal earlier;
+        # a concurrent writer (syncer/plugin) may have changed the file since.
+        # Terminal status is the archive precondition — if it no longer holds,
+        # or the file became unreadable, skip the move entirely.
+        try:
+            meta, body = read_frontmatter(src)
+        except Exception as error:
+            skipped += 1
+            print(f"archive-skip-unreadable {src.relative_to(VAULT)} {str(error)[:120]}")
+            continue
+        if meta.get("status") not in ("done", "cancelled"):
+            skipped += 1
+            print(f"archive-skip-not-terminal {src.relative_to(VAULT)} status={meta.get('status')!r}")
+            continue
         task_id = str(meta.get("id", src.stem))
         mirror = meta.get("mirror")
         reminder_id = str(mirror.get("reminders-uuid", "")).strip() if isinstance(mirror, dict) else ""
@@ -108,9 +130,11 @@ def main() -> int:
             shutil.move(str(src), str(dst))
             print(f"archived {src.relative_to(VAULT)}")
 
+    # files= counts what actually moved (or would move in dry-run): candidates skipped
+    # by the move-time reread are excluded so the number stays truthful.
     print(
-        f"archive done: files={len(moves)} mode={'dry-run' if args.dry_run else 'apply'}"
-        f" mirrors-deleted={mirrors_deleted} mirrors-failed={mirrors_failed}"
+        f"archive done: files={len(moves) - skipped} mode={'dry-run' if args.dry_run else 'apply'}"
+        f" mirrors-deleted={mirrors_deleted} mirrors-failed={mirrors_failed} skipped={skipped}"
     )
     return 0
 
