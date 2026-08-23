@@ -107,11 +107,12 @@ flag:
 - **Shell execution through `child_process`** — runs the terminal and dispatch hook
   commands configured by the user. Both hooks are empty (disabled) by default, and
   leaving them empty disables all plugin-initiated shell commands.
-- **Full vault enumeration** — scans `03 Tasks/` to build the task index used by the
-  sidebar and commands. Disable this capability by disabling the Task Vault plugin.
-- **Clipboard read/write** — powers the “copy task prompt” and “copy link” buttons. It
+- **Full vault enumeration** — enumerates Markdown files in the vault, then filters to
+  `03 Tasks/` to build the task index used by the sidebar and commands. Disable this
+  capability by disabling the Task Vault plugin.
+- **Clipboard write access** — powers the “copy task prompt” and “copy link” buttons. It
   is used only when one of those buttons is clicked; avoid those actions to leave the
-  clipboard untouched.
+  clipboard untouched. The plugin never reads the clipboard.
 
 Task Vault includes no telemetry and makes no network requests, apart from any network
 behavior performed by hook commands that the user explicitly configures.
