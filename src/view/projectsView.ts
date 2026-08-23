@@ -24,6 +24,7 @@ export class ProjectVaultView extends ItemView {
     private openDetail: OpenProjectDetail,
     private getT: () => T = () => DEFAULT_T,
     private now: () => Date = () => new Date(),
+    private onOpenAgenda?: () => void,
   ) {
     super(leaf);
   }
@@ -57,6 +58,10 @@ export class ProjectVaultView extends ItemView {
 
     const header = root.createDiv({ cls: 'tv-proj-header' });
     header.createSpan({ cls: 'tv-proj-header-title', text: t('projects.title') });
+    if (this.onOpenAgenda) {
+      const link = header.createSpan({ cls: 'tv-projects-link', text: t('sidebar.agenda') });
+      link.addEventListener('click', () => this.onOpenAgenda!());
+    }
 
     const stats = projectStats(
       this.store.allEntries().map((e) => e.task),

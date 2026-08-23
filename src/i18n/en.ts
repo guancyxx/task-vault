@@ -160,4 +160,44 @@ export const en = {
   'projectDetail.fallback': 'Project detail',
   'projectDetail.back': '← Back',
   'projectDetail.empty': 'No tasks in this project',
+
+  // Agenda panel (FR-036) — today's timeline in the right sidebar.
+  'agenda.title': 'Agenda',
+  'agenda.empty': 'Nothing scheduled today',
+  'agenda.allDay': 'All-day',
+  'agenda.doneGroup': 'Completed today',
+  'agenda.fullCalendar': '🗓 Full calendar',
+
+  // Calendar view (FR-036) — month grid in the center.
+  'cal.title': 'Calendar',
+  'cal.today': 'Today',
+  'cal.prevMonth': 'Previous month',
+  'cal.nextMonth': 'Next month',
+  'cal.more': '+{n}',
+  // Month title: {month} is the short month name, {year} the 4-digit year → "Aug 2026".
+  'cal.monthTitle': '{month} {year}',
+  'cal.month.0': 'Jan',
+  'cal.month.1': 'Feb',
+  'cal.month.2': 'Mar',
+  'cal.month.3': 'Apr',
+  'cal.month.4': 'May',
+  'cal.month.5': 'Jun',
+  'cal.month.6': 'Jul',
+  'cal.month.7': 'Aug',
+  'cal.month.8': 'Sep',
+  'cal.month.9': 'Oct',
+  'cal.month.10': 'Nov',
+  'cal.month.11': 'Dec',
+  // Weekday headers, Monday-first.
+  'cal.weekday.0': 'Mon',
+  'cal.weekday.1': 'Tue',
+  'cal.weekday.2': 'Wed',
+  'cal.weekday.3': 'Thu',
+  'cal.weekday.4': 'Fri',
+  'cal.weekday.5': 'Sat',
+  'cal.weekday.6': 'Sun',
+
+  // Chrome links + commands for the agenda/calendar (FR-036).
+  'sidebar.agenda': '🗓 Agenda',
+  'cmd.openAgenda': 'Agenda',
 };
