@@ -117,6 +117,8 @@ v0.3 增补（对应 FR-031~037）：
 - SC-016 内置 API：默认关；开启后 curl 四端点全通（POST /tasks 建档、GET 读、PATCH 走状态机与门禁——agent token 置 done 被拒转 review、POST log 落协议条目）；无 token 401；非本机回环拒连
 - SC-017 面板：项目面板卡片统计与库内实测一致（抽 2 项目）；日程面板今日时间轴正确（timed/all-day 排序、过期红）；日历月网格前后月导航正确、chip 点击开文档
 - SC-018 文档：README 含「Apple Reminders sync」章节与权限披露章节；无内部路径/个人 cron 泄漏（发布前 grep 扫描）
+- SC-019 双语 README：语言切换锚点可用（点击跳转对应语言区）；九个固定一级章节（Why/Features/For AI agents/Apple Reminders sync/Permissions & capabilities/Install/Data model/Limitations/License）在两版中一一对应（比对一级标题数与锚点）；英文版含 H9 全部两章内容；无内部信息泄漏
+- SC-020 i18n：设置页语言下拉（auto/zh-CN/en）生效——切换后无需重启：侧边栏分区标题、图例、弹窗、命令面板命令名、Notice 在下一次 render/重开面板即变语言；auto 模式跟随 Obsidian 界面语言、未知语言回退 en；任务文件数据层标题（## 执行记录 等）与条目格式在任何语言下不变；npm test 含字典键完整性测试（en/zh 键集相等）
 
 ## Requirements（FR，稳定 ID）
 
@@ -170,6 +172,8 @@ v0.3 增补（2026-08-23 六需求）：
 - FR-035 项目面板（R5a）：右侧栏 ItemView（与驾驶舱并列）。打开时展示全库项目统计：每项目一卡片——开放数（inbox+todo+doing+review+waiting）、过期数、本周完成数、在跑 agent 数、按开放数降序。点卡片在中间区开项目详情（按状态分组渲染 renderTaskRow 树）。项目管理交互（委派/状态/日志）从侧边栏行操作进
 - FR-036 日程面板 + 日历视图（R5b）：日程面板=右侧栏 ItemView，今日全部日程时间轴（timed 按时刻升序在前、all-day 靠后），过期标红；顶部「完整日历」按钮在中间区开日历视图。日历视图=中间区 ItemView 月网格：格内任务 chip（色条同 FR-031 语义，优先级角标），前/后月导航+回今天，点 chip 开任务文档。数据源=Task Vault 任务（due/完成日集合），非 daily notes。取代 Calendar 插件（用户拍板 2026-08-23：上线稳定后删除 vault 内 Calendar 插件）
 - FR-037 Reminders 同步对外说明（R6）：README 新章「Apple Reminders sync」：如实说明 Obsidian 无官方 Reminders 同步；本仓提供 Python 同步器（scripts/reminders_sync.py，macOS + remindctl + cron */5 + 唯一清单「待办」）自建路线的完整配置步骤与依赖清单。代码不改动（remindctl 依赖的解除排为后续任务）
+- FR-038 README 双语（用户需求 2026-08-23 第二轮）：README.md 中英双语。结构=顶部语言切换行（English | 简体中文 链接互跳锚点）+ 逐章中英对照（同文件内先英后中，各章以 `<hr>` 分隔；或标题双语并列——实现时二选一并保持全篇一致）。双语对齐范围固定为九个一级章节并使用显式锚点：Why / Features / For AI agents / Apple Reminders sync / Permissions & capabilities / Install / Data model / Limitations / License。maintainer 视角中文为准、对外发布视图英文为准的歧义句，以英文版为契约文本。README_zh.md 单独文件方案否决（社区市场只渲染根 README，双语必须在主文件内）
+- FR-039 UI 本地化 i18n（用户需求 2026-08-23 第二轮）：插件界面全量文案抽离到字典层。语言解析顺序=显式设置 > Obsidian 界面语言（moment.locale()，非 zh 系一律回退 en）> en；设置页加「界面语言 / Language」下拉（auto/zh-CN/en，存 .taskvault/config.json，auto=跟随 Obsidian）。生效语义=无需重启插件：保存设置后下一次 render、重新打开命令面板即生效。覆盖面=用户可见文案全部：侧边栏分区标题、图例、详情弹窗三面板、六命令名、快捷标注弹窗、捕获框 placeholder、Notice 消息、设置页标签、委派 agent 名旁注。执行记录/委派区等数据层标题（## 任务描述 / ## 执行记录 / ## 委派）与条目格式**不本地化**——文件协议是承重契约（AGENTS.md §7），改了会破 backstop 正则与 agent 解析；STATUS_LABEL 等展示词走字典但迁移条目 **from→to** 段保持英文状态名。命令名进字典后 COMMAND_ROWS 保持 id+key 为契约字段（name 改由字典取），现有命令注册测试按 id/key 断言不受影响。字典实现零依赖：src/i18n/zh.ts + en.ts + index.ts（t(key) 函数），不引 i18next
 
 明确不在 v1（越界即拒绝）：递归任务、看板、多用户、外部数据库、移动端 Obsidian 支持、任务关系图。统计面板原在 v1 排除项中，v0.3 起按 FR-035/036 纳入（项目统计与日历视图）。
 
