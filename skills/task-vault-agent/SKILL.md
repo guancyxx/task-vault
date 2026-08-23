@@ -120,21 +120,22 @@ verifiable citation as a continuation line of that entry:
 
 ```
 - 2026-08-23 20:51 · **todo→done** · `hermes`
-  完成标准已满足并经用户确认（msg 65363 为在席确认）。
+  完成标准已满足并经用户确认（「继续」为在席确认）。
   user-confirm: session=20260823_110322_61ec24 msg=65069 quote="PR 合并、总结交完才算 done"
 ```
 
-The gate checks format only; a deployment-side auditor verifies each citation against the
-originating chat store (message exists ∧ role=user ∧ session matches ∧ quote is an exact
-substring ∧ the message time is not later than the done write ∧ not a system injection).
-Failed verification = unreviewed.
+The citation must live inside the done entry, or in an entry written no earlier than the
+done boundary (both are legal per the authoritative spec). The gate checks format only; a
+deployment-side auditor verifies each citation against the originating chat store (message
+exists ∧ role=user ∧ session matches ∧ quote is an exact substring ∧ the message time is
+not later than the done write ∧ not a system injection). Failed verification = unreviewed.
 
 ## Delegation protocol
 
 1. Pick the agent (recommended order: CC > Codex > Hermes).
 2. Write the instruction into the `## 委派` section, set `assignee`, and dispatch through
-   the plugin's delegate action (UI or API) so the dispatch hook fires and `dispatched` is
-   stamped. Hand-writing `dispatched` is forbidden.
+   the plugin's delegate action (UI, or the API when it ships) so the dispatch hook fires
+   and `dispatched` is stamped. Hand-writing `dispatched` is forbidden.
 3. A dispatch whose hook is unconfigured writes frontmatter but starts NO agent — the
    delegator must surface that honestly.
 4. The delegated agent picks the task up by appending `接单` (acceptance) in its first log
