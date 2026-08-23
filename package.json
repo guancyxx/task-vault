@@ -1,6 +1,6 @@
 {
   "name": "task-vault",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Obsidian task plugin: one file per task, UUID identity, eight-state machine, DDL time control, sidebar cockpit.",
   "type": "module",
   "scripts": {

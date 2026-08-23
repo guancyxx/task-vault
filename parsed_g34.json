@@ -1,0 +1,60 @@
+{
+ "feeds": [
+  {
+   "source": "GitHub Blog",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "Netflix Tech",
+   "status": 0,
+   "error": "JavaScript evaluation failed at line 2, column 27: TypeError: Failed to fetch\n    at <anonymous>:2:2"
+  },
+  {
+   "source": "Lil'Log",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "Raschka",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "Eugene Yan",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "Netflix Tech",
+   "status": 0,
+   "error": "JavaScript evaluation failed at line 2, column 27: TypeError: Failed to fetch\n    at <anonymous>:2:2"
+  },
+  {
+   "source": "Pragmatic Engineer",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "Import AI",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "The Batch",
+   "status": 404,
+   "error": ""
+  },
+  {
+   "source": "Stripe",
+   "status": 200,
+   "error": ""
+  },
+  {
+   "source": "Google Research",
+   "status": 200,
+   "error": ""
+  }
+ ],
+ "hits": []
+}
