@@ -14,6 +14,7 @@ import type { TaskActions } from '../store/taskActions';
 import type { TaskStore } from '../store/taskStore';
 import { STATUS_LABEL, STATUS_META } from './taskRow';
 import { buildTaskPrompt, obsidianUri } from './taskPrompt';
+import { notifyDelegateResult, renderDelegatePanel } from './delegatePanel';
 
 // Quick-fill entry kinds; plain progress carries no kind. Shared with quickLogModal (FR-027).
 export const KINDS: Array<{ value: '' | EntryKind; label: string }> = [
@@ -21,13 +22,6 @@ export const KINDS: Array<{ value: '' | EntryKind; label: string }> = [
   { value: '决策', label: '决策' },
   { value: '评论', label: '评论' },
   { value: '卡点', label: '卡点' },
-];
-
-// Recommended delegation order (FR-015): CC > Codex > Hermes.
-const AGENTS: Array<{ value: string; label: string }> = [
-  { value: 'cc', label: 'CC' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'hermes', label: 'Hermes' },
 ];
 
 export function openDetail(app: App, store: TaskStore, actions: TaskActions, path: string): void {
@@ -143,37 +137,25 @@ class DetailModal extends Modal {
   }
 
   // 委派 (FR-015): agent select + instruction → 委派 section + assignee/dispatched + dispatch hook.
+  // Panel DOM + result notices are shared with the 委派 command via delegatePanel; this callback
+  // adds the popover-specific bits (optimistic assignee, re-render).
   private renderDelegation(parent: HTMLElement): void {
     const body = this.panel(parent, '委派');
-    const wrap = body.createDiv({ cls: 'tv-detail-delegate' });
-    const select = wrap.createEl('select');
-    for (const a of AGENTS) select.createEl('option', { text: a.label, attr: { value: a.value } });
-    if (this.task.assignee) select.value = this.task.assignee;
-    const instruction = wrap.createEl('textarea', { attr: { placeholder: '给 agent 的指令（全文写入「## 委派」）' } });
-    instruction.value = this.instruction;
-    instruction.addEventListener('input', () => {
-      this.instruction = instruction.value;
-    });
-    const btn = wrap.createEl('button', { cls: 'tv-btn tv-btn-cta', text: '委派' });
-    btn.addEventListener('click', () => {
-      const text = instruction.value.trim();
-      if (!text) {
-        new Notice('请填写委派指令');
-        return;
-      }
-      const assignee = select.value;
-      this.task = { ...this.task, assignee };
-      btn.disabled = true;
-      void this.actions.delegate(this.path, assignee, text).then((res) => {
-        btn.disabled = false;
-        // 只有真 fire 了 hook 才叫「已委派」——hook 空或炸了必须说出来，否则
-        // frontmatter 写了、agent 没起，用户以为交出去了（FR-021 回归）。
-        if (res === 'fired') new Notice(`已委派给 ${assignee}`);
-        else if (res === 'disabled')
-          new Notice(`⚠️ 已写入 ${assignee}，但派发 hook 未配置——没有 agent 被启动（设置 → Task Vault → 派发 hook）`, 10000);
-        else new Notice(`⚠️ 已写入 ${assignee}，但派发失败——没有 agent 被启动`, 10000);
-        this.render();
-      });
+    renderDelegatePanel(body, {
+      assignee: this.task.assignee,
+      instruction: this.instruction,
+      onInstructionChange: (v) => {
+        this.instruction = v;
+      },
+      onSubmit: (assignee, text, btn) => {
+        this.task = { ...this.task, assignee };
+        btn.disabled = true;
+        void this.actions.delegate(this.path, assignee, text).then((res) => {
+          btn.disabled = false;
+          notifyDelegateResult(res, assignee);
+          this.render();
+        });
+      },
     });
   }
 

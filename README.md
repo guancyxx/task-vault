@@ -37,8 +37,19 @@ Task Vault fixes the data model first:
 - **Row actions** — checkbox complete (walks the legal chain to done in one gesture),
   reschedule via the date chip (date & datetime), right-click detail popover.
 - **Detail popover** — legal-transition status menu, quick-fill log entry, delegation.
-- **记一条执行记录** command (default `Cmd+Shift+L`) — log an entry against the task
-  file open in the editor, no sidebar round-trip.
+- **Commands** — six task commands drive the file open in the editor with no sidebar
+  round-trip. Each is greyed out unless the current file is a task Task Vault has indexed.
+  Default hotkeys are `Mod+Shift`+letter (`Mod` = ⌘ on macOS, Ctrl elsewhere) and can be
+  re-bound in **Settings → Hotkeys**:
+
+  | Command | Default hotkey | Does |
+  |---|---|---|
+  | 记一条执行记录 | `Mod+Shift+L` | log an entry (pick 进展/决策/评论/卡点) |
+  | 快捷标注 · 决策 | `Mod+Shift+D` | one-line **决策** entry |
+  | 快捷标注 · 评论 | `Mod+Shift+C` | one-line **评论** entry |
+  | 快捷标注 · 卡点 | `Mod+Shift+K` | one-line **卡点** entry |
+  | 设置状态 | `Mod+Shift+S` | pick a legal transition target (终态 shows a notice) |
+  | 委派 | `Mod+Shift+A` | pick an agent + instruction, fire the dispatch hook |
 - **Execution log protocol** — `- YYYY-MM-DD HH:MM · **决策** · `actor`` blocks, newest
   first, plain Markdown, agent-friendly.
 - **Delegation** — pick an agent (CC > Codex > Hermes recommended order), write the
