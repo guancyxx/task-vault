@@ -100,7 +100,7 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区**最前�
 - **UTC 铁律（继承已修坑 2）**：remindctl 的 dueDate 是 UTC；设本地时刻 T 的定时提醒 → dueDate = T−8h 的 UTC；比较日期必须 +8h 后再取 date。
 - **complete 必须传完整 UUID**（8 位前缀报 Invalid identifier）。
 - 唯一清单「待办」（用户明确要求，不建分列表）。
-- 无 "程序性 complete 孤儿清理"——UUID 身份下孤儿（mirror 指向不存在 id）只报告不自动删。
+- 无 "程序性 complete 孤儿清理"——UUID 身份下孤儿（mirror 指向不存在 id）只报告不自动删。例外（T023, 2026-08-21）：归档脚本删除终态任务自己名下 mirror 指向的提醒，属生命周期收尾而非孤儿清理。
 
 ## 9. 兜底派发 cron 判据
 
@@ -109,7 +109,7 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区**最前�
 - **`dispatched` 必须存在（显式 #auto 除外）**（2026-08-19 修正）：普通任务只有 assignee 仍不算派发，避免把默认归属误判为委派；#auto 是自动首派并写入 dispatched 的唯一例外。
 - **取 `last_at` 与 `dispatched` 的较晚者**：补派不写 `dispatched`（禁令），只看 `dispatched` 会让补派每 tick 重复触发。
 - 上限：每任务 `count >= 3` 停手，单轮最多派 3 个（`dispatch_backstop.py` 的 `MAX_ATTEMPTS` / `MAX_PER_RUN`）。人工重试走 `--force <任务文件>`。
-- backstop 用 `.taskvault/dispatch.lock` 将最终重读与完整资格重判、ledger attempt 占位、#auto `dispatched` 写入、hook 调用包在同一排他区；attempt 在 hook 前递增，hook 失败不回退。
+- `dispatch_backstop.py` 用 `.taskvault/dispatch.lock` 将最终重读与完整资格重判、ledger attempt 占位、#auto `dispatched` 写入、hook 调用包在同一排他区；attempt 在 hook 前递增，hook 失败不回退。
 
 ## 10. review 硬门禁（FR-030）
 

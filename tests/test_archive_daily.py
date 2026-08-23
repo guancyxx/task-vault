@@ -110,7 +110,7 @@ class ArchiveDailyTest(unittest.TestCase):
         task(task_path, str(uuid.uuid4()), "Plain", "done", "2026-08-20")
         self.seed_state([reminder(live_id)])
         result = self.run_archive()
-        self.assertIn("files=1", result.stdout)
+        self.assertRegex(result.stdout, r"files=1\D")
         self.assertIn("mirrors-deleted=0", result.stdout)
         state = self.mock_state()
         self.assertNotIn("delete", [call[0] for call in state["calls"] if call])
@@ -173,7 +173,7 @@ class ArchiveDailyTest(unittest.TestCase):
         first = self.run_archive()
         self.assertIn("files=1", first.stdout)
         second = self.run_archive()
-        self.assertIn("files=0", second.stdout)
+        self.assertRegex(second.stdout, r"files=0\D")
         self.assertIn("mirrors-deleted=0", second.stdout)
 
     # f. batch of two mirrored done tasks → both deleted
@@ -184,7 +184,7 @@ class ArchiveDailyTest(unittest.TestCase):
         task(self.tasks / "2026-08-19-b.md", str(uuid.uuid4()), "B", "done", "2026-08-20", second_id)
         self.seed_state([reminder(first_id), reminder(second_id)])
         result = self.run_archive()
-        self.assertIn("files=2", result.stdout)
+        self.assertRegex(result.stdout, r"files=2\D")
         self.assertIn("mirrors-deleted=2", result.stdout)
         self.assertEqual(self.mock_state()["reminders"], [])
 
@@ -234,8 +234,8 @@ class ArchiveDailyTest(unittest.TestCase):
         wrapper = self.write_side_effect_remindctl("flip", later)
         result = self.run_archive(extra_env={"MOCK_REMINDERS_STATE": str(self.state)}, *["--remindctl", str(wrapper)])
         self.assertIn("archive-skip-not-terminal 03 Tasks/2026-08-19-b.md status='doing'", result.stdout)
-        self.assertIn("skipped=1", result.stdout)
-        self.assertIn("files=1", result.stdout)
+        self.assertRegex(result.stdout, r"skipped=1\D")
+        self.assertRegex(result.stdout, r"files=1\D")
         self.assertIn("mirrors-deleted=1", result.stdout)
         metadata, _ = read_frontmatter(later)
         self.assertEqual(metadata["status"], "doing")
@@ -251,9 +251,70 @@ class ArchiveDailyTest(unittest.TestCase):
         wrapper = self.write_side_effect_remindctl("break", later)
         result = self.run_archive(extra_env={"MOCK_REMINDERS_STATE": str(self.state)}, *["--remindctl", str(wrapper)])
         self.assertIn("archive-skip-unreadable 03 Tasks/2026-08-19-b.md", result.stdout)
-        self.assertIn("skipped=1", result.stdout)
-        self.assertIn("files=1", result.stdout)
+        self.assertRegex(result.stdout, r"skipped=1\D")
+        self.assertRegex(result.stdout, r"files=1\D")
         self.assertEqual(later.read_text(encoding="utf-8"), "not frontmatter anymore\n")
+
+    # h2. dry-run round with a mid-run flip → candidate skipped, nothing written (Nit3 fast-follow)
+    # In-process: in dry-run the CLI never calls remindctl (delete is only reported),
+    # so the side-effect-wrapper seam from tests g/h cannot fire. Instead we load the
+    # module and wrap read_frontmatter so the move-time reread of `later` observes a
+    # concurrent flip — the exact scenario the skip logic must handle in dry-run too.
+    def test_dry_run_reports_skip_and_writes_nothing_when_flipped(self):
+        import contextlib
+        import importlib.util
+        import io
+
+        first_id = "AAAAAAA4-0000-0000-0000-000000000004"
+        task(self.tasks / "2026-08-19-a.md", str(uuid.uuid4()), "A", "done", "2026-08-20", first_id)
+        later = self.tasks / "2026-08-19-b.md"
+        task(later, str(uuid.uuid4()), "B", "done", "2026-08-20")
+        self.seed_state([reminder(first_id)])
+
+        spec = importlib.util.spec_from_file_location("archive_daily_dryrun", ROOT / "scripts" / "archive_daily.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        # the module binds VAULT/ARCHIVE at import from the ambient env; point them
+        # at the temp vault so the in-process run cannot touch the real one
+        mod.VAULT = self.vault
+        mod.ARCHIVE = self.vault / "98 archive"
+
+        real_read = mod.read_frontmatter
+        seen: dict[Path, int] = {}
+
+        def flipping_read(path):
+            count = seen.get(path, 0) + 1
+            seen[path] = count
+            if path == later and count >= 2:  # move-time reread: concurrent writer flips it now
+                text = path.read_text(encoding="utf-8")
+                path.write_text(text.replace("status: done", "status: doing"), encoding="utf-8")
+            return real_read(path)
+
+        mod.read_frontmatter = flipping_read
+        argv = sys.argv
+        sys.argv = ["archive_daily.py", "--dry-run"]
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                mod.main()
+        finally:
+            sys.argv = argv
+
+        stdout = out.getvalue()
+        self.assertIn("archive-skip-not-terminal 03 Tasks/2026-08-19-b.md status='doing'", stdout)
+        self.assertIn("mode=dry-run", stdout)
+        self.assertRegex(stdout, r"skipped=1\D")
+        self.assertRegex(stdout, r"files=1\D")
+        self.assertIn("would-archive 03 Tasks/2026-08-19-a.md", stdout)
+        self.assertNotIn("would-archive 03 Tasks/2026-08-19-b.md", stdout)
+        # nothing written by the dry run itself: A keeps its mirror, B shows only the flip
+        metadata, _ = read_frontmatter(self.tasks / "2026-08-19-a.md")
+        self.assertEqual(metadata["mirror"]["reminders-uuid"], first_id)
+        metadata, _ = read_frontmatter(later)
+        self.assertEqual(metadata["status"], "doing")
+        self.assertFalse((self.vault / "98 archive").exists())
+        state = self.mock_state()
+        self.assertNotIn("delete", [call[0] for call in state["calls"] if call])
 
     # i. mock not-found message matches the real remindctl binary (N4)
     def test_not_found_message_matches_real_remindctl(self):
