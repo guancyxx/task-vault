@@ -59,8 +59,7 @@ export function bucketOf(task: Task, now: Date): Bucket {
   if (!due) return 'week';
 
   const nowDay = dayStr(now);
-  const overdue = isDateOnly(due) ? due.slice(0, 10) < nowDay : parseLocal(due) < now;
-  if (overdue) return 'overdue';
+  if (isOverdue(task, now)) return 'overdue';
 
   // A start in the future means the task isn't actionable today (FR-006): push to 本周.
   if (task.start) {
@@ -79,6 +78,33 @@ export function bucketOf(task: Task, now: Date): Bucket {
 export function completedToday(task: Task, now: Date): boolean {
   if (!task.completed) return false;
   return task.completed.slice(0, 10) === dayStr(now);
+}
+
+// FR-035 项目统计口径: 过期 = 非终态且 due < now. Date-only compares by day; timed by the minute.
+// Note this ignores the review-before-due precedence in bucketOf — a project's overdue tally
+// counts every non-terminal task past its due, review included.
+export function isOverdue(task: Task, now: Date): boolean {
+  if (isTerminal(task)) return false;
+  const due = task.due;
+  if (!due) return false;
+  return isDateOnly(due) ? due.slice(0, 10) < dayStr(now) : parseLocal(due) < now;
+}
+
+// Monday-start local week window for the 本周完成 tally. Returns [start, nextStart).
+function weekWindow(now: Date): [Date, Date] {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const mondayOffset = (midnight.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
+  const start = new Date(midnight.getFullYear(), midnight.getMonth(), midnight.getDate() - mondayOffset);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+  return [start, end];
+}
+
+// FR-035 本周完成: completed timestamp falls in the current Monday..Sunday local week.
+export function completedThisWeek(task: Task, now: Date): boolean {
+  if (!task.completed) return false;
+  const [start, end] = weekWindow(now);
+  const at = parseLocal(task.completed);
+  return at >= start && at < end;
 }
 
 // FR-008: timed countdown `剩 XhYm` and overdue `超期 Nd|Nh|Nm`. All-day non-overdue and terminal

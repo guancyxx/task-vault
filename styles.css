@@ -559,3 +559,128 @@ button.tv-chip-btn:hover {
 .tv-project-divider:first-child {
   margin-top: 2px;
 }
+
+/* ---------- projects panel (FR-035, H7) ---------- */
+.tv-cockpit-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+.tv-projects-link {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  user-select: none;
+}
+.tv-projects-link:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border-hover);
+}
+
+.tv-proj-header {
+  margin-bottom: 10px;
+}
+.tv-proj-header-title {
+  font-weight: 700;
+  font-size: var(--font-ui-medium);
+  letter-spacing: 0.02em;
+  color: var(--text-normal);
+}
+
+.tv-proj-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Bold/masculine card: 6px radius, token border, brightening on hover. */
+.tv-proj-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tv-proj-card:hover {
+  border-color: var(--background-modifier-border-hover);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+.tv-proj-name {
+  font-weight: 700;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tv-proj-metrics {
+  display: flex;
+  gap: 14px;
+}
+.tv-proj-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+.tv-proj-num {
+  font-size: 1.5em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+}
+.tv-proj-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+/* Open = the primary tally: accent-colored and slightly larger. */
+.tv-proj-metric-open .tv-proj-num {
+  color: var(--color-accent);
+  font-size: 1.7em;
+}
+/* Overdue > 0 burns red; agents in flight read blue. Zeroed ones stay muted. */
+.tv-proj-metric-overdue .tv-proj-num {
+  color: var(--color-red);
+}
+.tv-proj-metric-agents .tv-proj-num {
+  color: var(--color-blue);
+}
+.tv-proj-metric-muted .tv-proj-num {
+  color: var(--text-muted);
+}
+
+/* ---------- project detail (center leaf) ---------- */
+.tv-proj-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.tv-proj-back {
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+}
+.tv-proj-back:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.tv-proj-detail-title {
+  font-weight: 700;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+}

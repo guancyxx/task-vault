@@ -41,6 +41,7 @@ export class TaskVaultView extends ItemView {
     private onCapture?: CaptureHandler,
     private actions?: TaskActions,
     private now: () => Date = () => new Date(),
+    private onOpenProjects?: () => void,
   ) {
     super(leaf);
   }
@@ -70,6 +71,13 @@ export class TaskVaultView extends ItemView {
     const root = this.containerEl;
     root.empty();
     root.addClass('tv-cockpit');
+    // Header link to the projects panel (FR-035). One row above capture; leaves the five
+    // sections untouched. Absent when no handler is wired (e.g. read-only tests).
+    if (this.onOpenProjects) {
+      const bar = root.createDiv({ cls: 'tv-cockpit-header' });
+      const link = bar.createSpan({ cls: 'tv-projects-link', text: '📁 项目面板' });
+      link.addEventListener('click', () => this.onOpenProjects!());
+    }
     this.renderCaptureBox(root);
     const grouped = this.store.bucketed(this.now());
 
