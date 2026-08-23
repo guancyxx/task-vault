@@ -157,7 +157,7 @@ export class TaskActions {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       for (const [k, v] of Object.entries(patch)) {
         if (v === undefined) delete fm[k];
-        else fm[k] = v as unknown;
+        else fm[k] = v;
       }
     });
   }

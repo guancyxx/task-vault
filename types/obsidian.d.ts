@@ -65,7 +65,8 @@ declare module 'obsidian' {
     path: string;
   }
 
-  export interface EventRef {}
+  // Opaque handle returned by Vault.on / passed to offref & registerEvent — not an empty shape.
+  export type EventRef = object;
 
   export interface DataAdapter {
     getName(): string;
@@ -148,7 +149,7 @@ declare module 'obsidian' {
     setPlaceholder(placeholder: string): this;
     inputEl: HTMLTextAreaElement;
   }
-  export interface ToggleComponent extends ValueComponent<boolean> {}
+  export type ToggleComponent = ValueComponent<boolean>;
   export interface ButtonComponent {
     setButtonText(text: string): this;
     setCta(): this;
@@ -168,11 +169,19 @@ declare module 'obsidian' {
     addButton(cb: (button: ButtonComponent) => void): this;
   }
 
+  // Declarative settings-search entry (Obsidian 1.13+). A tab exposes its settings so they
+  // are indexed by the in-app settings search even before display() renders the DOM.
+  export interface SettingDefinition {
+    name: string;
+    description?: string;
+  }
+
   export abstract class PluginSettingTab {
     app: App;
     containerEl: HTMLElement;
     constructor(app: App, plugin: Plugin);
     abstract display(): void;
+    getSettingDefinitions?(): SettingDefinition[];
     hide(): void;
   }
 

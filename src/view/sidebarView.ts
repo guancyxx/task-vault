@@ -110,7 +110,9 @@ export class TaskVaultView extends ItemView {
           ?? '未分类';
         if (proj !== lastProject) {
           lastProject = proj;
-          const key = `${bucket}\u0000${proj}`;
+          // JSON-encoded [bucket, project] composite key — no control-char separator, and
+          // safe even when a project name contains the delimiter (Scorecard hygiene, FR-033).
+          const key = JSON.stringify([bucket, proj]);
           currentCollapsed = !this.expandedProjects.has(key); // default folded
           const div = body.createDiv({ cls: 'tv-project-divider' });
           div.toggleClass('tv-collapsed', currentCollapsed);

@@ -131,7 +131,7 @@ class DetailModal extends Modal {
 
     btn.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' || (e as KeyboardEvent).isComposing) return;
+      if (e.key !== 'Enter' || e.isComposing) return;
       submit();
     });
   }

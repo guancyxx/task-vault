@@ -25,7 +25,13 @@ export default class TaskVaultPlugin extends Plugin {
   private config!: ConfigService;
   private actions!: TaskActions;
 
-  async onload(): Promise<void> {
+  // Obsidian's Plugin.onload is typed `void`; keep it synchronous and fire the async
+  // bootstrap without returning a promise (Scorecard: no promise where void is expected).
+  onload(): void {
+    void this.bootstrap();
+  }
+
+  private async bootstrap(): Promise<void> {
     const dir = taskvaultDir(this);
     this.config = new ConfigService(
       new NodeJsonStore<Config>(`${dir}/config.json`, DEFAULT_CONFIG, normalizeConfig),

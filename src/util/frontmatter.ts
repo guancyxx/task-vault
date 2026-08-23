@@ -143,7 +143,7 @@ export function parseTaskFile(raw: string, filePath: string): ParseResult {
   const body = raw.slice(fence[0].length);
   const map = parseFrontmatterBlock(fence[1]);
 
-  const str = (k: string): string | undefined => (typeof map[k] === 'string' ? (map[k] as string) : undefined);
+  const str = (k: string): string | undefined => (typeof map[k] === 'string' ? map[k] : undefined);
 
   for (const req of ['id', 'title', 'status', 'created']) {
     if (str(req) === undefined) return fail(filePath, `missing required field: ${req}`);
@@ -172,7 +172,7 @@ export function parseTaskFile(raw: string, filePath: string): ParseResult {
     created: str('created')!,
   };
   const assign = (k: keyof Task): void => {
-    const v = str(k as string);
+    const v = str(k);
     if (v !== undefined) (task as unknown as Record<string, unknown>)[k] = v;
   };
   for (const k of [
@@ -182,7 +182,7 @@ export function parseTaskFile(raw: string, filePath: string): ParseResult {
     assign(k);
   }
   for (const k of LIST_KEYS) {
-    if (Array.isArray(map[k as string])) (task as unknown as Record<string, unknown>)[k] = map[k as string];
+    if (Array.isArray(map[k])) (task as unknown as Record<string, unknown>)[k] = map[k];
   }
   const mirror = map['mirror'];
   if (mirror && typeof mirror === 'object' && !Array.isArray(mirror) && mirror['reminders-uuid']) {
