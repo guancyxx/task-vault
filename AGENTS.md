@@ -58,7 +58,7 @@ mirror:
 
 ## 5. 任务文件命名与 slug
 
-- `03 Tasks/YYYY-MM-DD-<slug>.md`；日期 = created 的日期部分。
+- `03 Tasks/<项目>/<YYYY-MM-DD>/<slug>.md`（项目/日期两级目录，文件名不带日期前缀）。项目文件夹解析：frontmatter `project`（剥 wikilink）→ 首个 `repo/*` 标签 → `_未分类`；日期文件夹 = created 的日期部分。
 - slug = title：转小写、空白→`-`、去除非 `[a-z0-9\u4e00-\u9fff-]` 字符、连续 `-` 折叠、首尾 `-` 裁剪、截断 50 字符、空→`task`。
 - 同日期同 slug 冲突 → 追加 `-2`/`-3`。
 
