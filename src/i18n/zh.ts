@@ -138,6 +138,20 @@ export const zh: Record<keyof typeof en, string> = {
   'settings.backstop': '兜底派发阈值（分钟）',
   'settings.backstopDesc': '委派后经过此分钟数仍无接单记录，兜底 cron 补派。',
 
+  // FR-034 内置本地 API。
+  'settings.apiHeading': '本地 API',
+  'settings.apiEnabled': '开启本地 API',
+  'settings.apiEnabledDesc':
+    '仅监听本机（127.0.0.1）的 HTTP API，让 agent 经状态机新建、读取、更新与记录任务。默认关闭。',
+  'settings.apiPort': '端口',
+  'settings.apiPortDesc': '本地 API 的 TCP 端口（1–65535）。修改后自动重启。',
+  'settings.apiToken': '{agent} 令牌',
+  'settings.apiTokenDesc': '标识 {agent} 的 Bearer 令牌；留空则该 agent 无法鉴权。',
+  'settings.apiTokenGenerate': '生成',
+  'settings.apiTokenWarning':
+    '令牌以明文显示并未加密存于 config.json。本机单用户设计——风险自负。',
+  'api.portError': '本地 API 无法绑定端口 {port}：{err}',
+
   'projectDetail.title': '项目 · {project}',
   'projectDetail.fallback': '项目详情',
   'projectDetail.back': '← 返回',

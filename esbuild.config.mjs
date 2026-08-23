@@ -20,6 +20,7 @@ const external = [
   'node:fs',
   'node:path',
   'node:child_process',
+  'node:http',
 ];
 
 const options = {

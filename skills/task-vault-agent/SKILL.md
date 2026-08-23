@@ -143,13 +143,40 @@ not later than the done write ∧ not a system injection). Failed verification =
 5. The task prompt handed to the agent should include: task file path (absolute or
    obsidian:// URI), the instruction, and this protocol (or a pointer to this file).
 
-## Local HTTP API (planned for v0.3, NOT yet implemented)
+## Local HTTP API
 
-Once shipped, the plugin's built-in API will let agents route writes through the state
-machine, the review gate, and hooks — `POST /tasks`, `GET /tasks/:id`, `PATCH /tasks/:id`,
-`POST /tasks/:id/log`, Bearer-token auth, 127.0.0.1 only, off by default. Until then,
-agents write task files directly following the write protocol above. Do not document
-enable-steps for a feature that does not exist in the current release.
+The plugin ships a built-in localhost HTTP API so agents can route writes through the state
+machine, the FR-030 review gate, and hooks instead of editing files by hand. Desktop-only,
+**off by default**. Enable it in the plugin settings → *Local API*: turn it on, keep the port
+(default `39187`), and generate a token per agent. Each token maps to one actor
+(`hermes`/`cc`/`codex`); the **actor is taken from the token, never from the request body**.
+
+- Bind: `127.0.0.1` only (never `0.0.0.0`); no CORS; 64 KB body cap.
+- Auth: `Authorization: Bearer <token>`; a missing/unknown/blank token → `401 {"error":...}`.
+- Errors are English JSON `{ "error": ... }` (machine-consumed, not localized).
+
+| Method | Path | Body | Success | Notes |
+|--------|------|------|---------|-------|
+| POST | `/tasks` | `{ text }` | `201 { path, title }` | `text` runs through capture parsing (`!high @project #tag` + NL date); `source` is stamped to the token's actor |
+| GET | `/tasks/:id` | — | `200 { path, task, log }` | `task` = frontmatter, `log` = raw `## 执行记录` body |
+| PATCH | `/tasks/:id` | `{ status?, due?, priority? }` | `200 { ok }` | `status` goes through the machine; an illegal target (or agent→`done`) → `409 { error, legal: [...] }` |
+| POST | `/tasks/:id/log` | `{ text, kind? }` | `201 { ok }` | `kind` ∈ `决策`/`评论`/`卡点`; omit for plain progress |
+
+An unknown `:id` → `404`. **Agents cannot set `done`** — PATCH to `done` is refused with `409`;
+deliver into `review` and let the user confirm (FR-030). Example:
+
+```bash
+TOKEN=…; API=http://127.0.0.1:39187
+curl -s -XPOST $API/tasks -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"text":"写周报 !high 明天"}'
+curl -s -XPATCH $API/tasks/<id> -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"status":"review"}'
+curl -s -XPOST $API/tasks/<id>/log -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"text":"拉起分支","kind":"决策"}'
+```
+
+Tokens are stored in plaintext in `.taskvault/config.json` — single-user, local-only design.
+When the API is off, agents write task files directly following the write protocol above.
 
 ## Pitfalls (learned the hard way)
 

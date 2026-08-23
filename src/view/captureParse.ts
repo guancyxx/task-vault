@@ -6,7 +6,7 @@
 // NL parser; whatever it leaves (`consumed`) is the title. Empty title → null (caller keeps the
 // raw text, no file). Status = todo when a due is present, else inbox (FR-012).
 
-import type { Priority, Task } from '../model/types';
+import type { Priority, Source, Task } from '../model/types';
 import { parseNlDate } from '../time/nlDateParser';
 
 export interface Capture {
@@ -80,7 +80,7 @@ function localIsoMinute(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function captureToTask(c: Capture, opts: { id: string; now: Date }): Task {
+export function captureToTask(c: Capture, opts: { id: string; now: Date; source?: Source }): Task {
   // No explicit DDL → due today 22:00 (user rule 2026-08-19: 没说明 ddl 就当天 22 点).
   const due = c.due ?? localIsoMinute(new Date(opts.now.getFullYear(), opts.now.getMonth(), opts.now.getDate(), 22, 0));
   const task: Task = {
@@ -89,7 +89,7 @@ export function captureToTask(c: Capture, opts: { id: string; now: Date }): Task
     status: 'todo',
     created: localIsoMinute(opts.now),
     due,
-    source: 'user',
+    source: opts.source ?? 'user',
   };
   if (c.start) task.start = c.start;
   task.due = due;

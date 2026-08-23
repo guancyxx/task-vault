@@ -5,6 +5,14 @@
 import type { JsonStore } from './store/jsonStore';
 import type { Lang } from './i18n';
 
+// FR-034 phase two: one bearer token per agent identity; the API reverse-maps a token to its
+// actor. A missing/empty token means that agent cannot authenticate.
+export interface AgentTokens {
+  hermes?: string;
+  cc?: string;
+  codex?: string;
+}
+
 export interface Config {
   version: number;
   terminal_hook: string; // '' = disabled
@@ -12,7 +20,12 @@ export interface Config {
   default_remind: { allday: string; timed: string };
   backstop_minutes: number;
   ui_language: Lang; // FR-039: 'auto' follows Obsidian's UI language
+  api_enabled: boolean; // FR-034: built-in localhost HTTP API, off by default
+  api_port: number; // 127.0.0.1:<port>
+  agent_tokens: AgentTokens;
 }
+
+export const DEFAULT_API_PORT = 39187;
 
 export const DEFAULT_CONFIG: Config = {
   version: 1,
@@ -21,6 +34,9 @@ export const DEFAULT_CONFIG: Config = {
   default_remind: { allday: '09:00', timed: 'due' },
   backstop_minutes: 30,
   ui_language: 'auto',
+  api_enabled: false,
+  api_port: DEFAULT_API_PORT,
+  agent_tokens: {},
 };
 
 const UI_LANGUAGES: readonly Lang[] = ['auto', 'zh-CN', 'en'];
@@ -29,6 +45,8 @@ const UI_LANGUAGES: readonly Lang[] = ['auto', 'zh-CN', 'en'];
 export function normalizeConfig(raw: unknown): Config {
   const r = (raw ?? {}) as Partial<Config>;
   const remind = (r.default_remind ?? {}) as Partial<Config['default_remind']>;
+  const tokens = (r.agent_tokens ?? {}) as Partial<AgentTokens>;
+  const token = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
   return {
     version: typeof r.version === 'number' ? r.version : DEFAULT_CONFIG.version,
     terminal_hook: typeof r.terminal_hook === 'string' ? r.terminal_hook : DEFAULT_CONFIG.terminal_hook,
@@ -43,6 +61,12 @@ export function normalizeConfig(raw: unknown): Config {
       typeof r.ui_language === 'string' && UI_LANGUAGES.includes(r.ui_language)
         ? r.ui_language
         : DEFAULT_CONFIG.ui_language,
+    api_enabled: typeof r.api_enabled === 'boolean' ? r.api_enabled : DEFAULT_CONFIG.api_enabled,
+    api_port:
+      typeof r.api_port === 'number' && Number.isInteger(r.api_port) && r.api_port > 0 && r.api_port < 65536
+        ? r.api_port
+        : DEFAULT_CONFIG.api_port,
+    agent_tokens: { hermes: token(tokens.hermes), cc: token(tokens.cc), codex: token(tokens.codex) },
   };
 }
 

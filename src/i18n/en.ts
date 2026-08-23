@@ -155,6 +155,20 @@ export const en = {
   'settings.backstop': 'Backstop dispatch (min)',
   'settings.backstopDesc': 'Minutes after delegation with no pickup before the backstop cron re-dispatches.',
 
+  // FR-034 built-in local API.
+  'settings.apiHeading': 'Local API',
+  'settings.apiEnabled': 'Enable local API',
+  'settings.apiEnabledDesc':
+    'Serve a localhost-only HTTP API (127.0.0.1) so agents can create, read, update, and log tasks through the state machine. Off by default.',
+  'settings.apiPort': 'Port',
+  'settings.apiPortDesc': 'TCP port for the local API (1–65535). Restart on change is automatic.',
+  'settings.apiToken': '{agent} token',
+  'settings.apiTokenDesc': 'Bearer token identifying {agent}. Empty means this agent cannot authenticate.',
+  'settings.apiTokenGenerate': 'Generate',
+  'settings.apiTokenWarning':
+    'Tokens are shown in plaintext and stored unencrypted in config.json. Single-user local-only design — use at your own risk.',
+  'api.portError': 'Local API could not bind port {port}: {err}',
+
   // Project detail view.
   'projectDetail.title': 'Project · {project}',
   'projectDetail.fallback': 'Project detail',
