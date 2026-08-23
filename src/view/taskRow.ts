@@ -40,6 +40,12 @@ export const STATUS_META: Record<Status, StatusMeta> = {
   cancelled: { glyph: '✕', cls: 'cancelled' },
 };
 
+// Row tooltip (FR-031): the color rail is the primary status channel, so the row carries
+// a title so hovering names the state. Pure — the single source for the tooltip wording.
+export function statusTooltip(status: Status): string {
+  return `状态：${STATUS_LABEL[status]}（${status}）`;
+}
+
 // Priority → tag label (user request 2026-08-19: show priority as p0-p3 tags).
 export const PRIORITY_TAG: Record<string, string> = {
   high: 'p0',
@@ -84,7 +90,10 @@ function isTerminal(status: Status): boolean {
 export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext): HTMLElement {
   const meta = STATUS_META[ctx.effectiveStatus];
   const blocked = ctx.blockSources.length > 0;
-  const row = parent.createDiv({ cls: ['tv-row', `tv-status-${meta.cls}`] });
+  const row = parent.createDiv({
+    cls: ['tv-row', `tv-status-${meta.cls}`],
+    attr: { title: statusTooltip(ctx.effectiveStatus) },
+  });
   row.toggleClass('tv-blocked', blocked);
   row.toggleClass('tv-waiting', ctx.effectiveStatus === 'waiting');
   row.toggleClass('tv-child', ctx.indent === true);

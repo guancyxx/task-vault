@@ -21,7 +21,9 @@ export class LegendModal extends Modal {
     contentEl.createEl('h3', { text: '状态' });
     for (const status of STATUSES) {
       const meta = STATUS_META[status];
-      const row = contentEl.createDiv({ cls: ['tv-legend-row', `tv-status-${meta.cls}`] });
+      const row = contentEl.createDiv({ cls: 'tv-legend-row' });
+      // Real 4px color rail sample — same element + tv-status class the rows render (FR-031).
+      row.createSpan({ cls: ['tv-legend-rail', `tv-status-${meta.cls}`] });
       row.createSpan({ cls: 'tv-glyph', text: meta.glyph });
       row.createSpan({ cls: 'tv-legend-label', text: `${STATUS_LABEL[status]}${LEGEND_HINT[status] ?? ''}` });
     }
