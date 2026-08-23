@@ -48,7 +48,7 @@ Task Vault fixes the data model first:
   | 快捷标注 · 决策 | `Mod+Shift+D` | one-line **决策** entry |
   | 快捷标注 · 评论 | `Mod+Shift+C` | one-line **评论** entry |
   | 快捷标注 · 卡点 | `Mod+Shift+K` | one-line **卡点** entry |
-  | 设置状态 | `Mod+Shift+S` | pick a legal transition target (终态 shows a notice) |
+  | 设置状态 | `Mod+Shift+S` | pick a legal transition target (no-target states show a notice) |
   | 委派 | `Mod+Shift+A` | pick an agent + instruction, fire the dispatch hook |
 - **Execution log protocol** — `- YYYY-MM-DD HH:MM · **决策** · `actor`` blocks, newest
   first, plain Markdown, agent-friendly.

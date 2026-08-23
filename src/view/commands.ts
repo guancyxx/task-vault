@@ -25,8 +25,9 @@ function panel(parent: HTMLElement, title: string, statusCls?: string): HTMLElem
   return card.createDiv({ cls: 'tv-panel-body' });
 }
 
-// 设置状态 command: pick a legal target for the active task. Terminal states never reach the
-// modal — the caller Notices instead (below).
+// 设置状态 command: pick a legal target for the active task. Only `done` is truly
+// exit-less (TRANSITIONS.done = []); `cancelled` still offers 重开 → todo, so it must
+// reach the modal, not a dead-end notice.
 class SetStatusModal extends Modal {
   constructor(
     app: App,
@@ -75,7 +76,7 @@ function openSetStatus(app: App, store: TaskStore, actions: TaskActions, path: s
   }
   const targets = statusTargets(entry.task.status);
   if (targets.length === 0) {
-    new Notice(`「${STATUS_LABEL[entry.task.status]}」是终态，无可转移目标`);
+    new Notice(`「${STATUS_LABEL[entry.task.status]}」没有可转移的目标`);
     return;
   }
   new SetStatusModal(app, actions, path, entry.task.title, entry.task.status, targets).open();
@@ -133,33 +134,60 @@ function openDelegate(app: App, store: TaskStore, actions: TaskActions, path: st
 
 // Register all six commands. Each shares one checkCallback gate: enabled only when the active
 // editor file is a task the store has indexed. Default hotkeys are Mod+Shift + the given letter.
+
+// Pure command table (single source for ids, names, and default hotkey letters). Exported for
+// tests — registration iterates this, so the shipped commands can never drift from the spec.
+export interface CommandRow {
+  id: string;
+  name: string;
+  key: string;
+}
+
+export const COMMAND_ROWS: readonly CommandRow[] = [
+  { id: 'quick-log', name: '记一条执行记录', key: 'L' },
+  { id: 'log-decision', name: '快捷标注 · 决策', key: 'D' },
+  { id: 'log-comment', name: '快捷标注 · 评论', key: 'C' },
+  { id: 'log-blocker', name: '快捷标注 · 卡点', key: 'K' },
+  { id: 'set-status', name: '设置状态', key: 'S' },
+  { id: 'delegate', name: '委派', key: 'A' },
+] as const;
+
+// Pure gate: resolves the active path to an indexed task path, or null. Extracted so the
+// checkCallback behavior (grey-out on non-task files) is unit-testable without Obsidian.
+export function commandGate(
+  store: Pick<TaskStore, 'entryByPath'>,
+  activePath: string | null,
+): string | null {
+  if (!activePath) return null;
+  return store.entryByPath(activePath) ? activePath : null;
+}
+
 export function registerCommands(
   plugin: Plugin,
   app: App,
   store: TaskStore,
   actions: TaskActions,
 ): void {
-  const gated = (id: string, name: string, key: string, run: (path: string) => void): void => {
+  const runners: Record<string, (path: string) => void> = {
+    'quick-log': (p) => openQuickLog(app, store, actions, p),
+    'log-decision': (p) => openAnnotate(app, store, actions, p, '决策'),
+    'log-comment': (p) => openAnnotate(app, store, actions, p, '评论'),
+    'log-blocker': (p) => openAnnotate(app, store, actions, p, '卡点'),
+    'set-status': (p) => openSetStatus(app, store, actions, p),
+    delegate: (p) => openDelegate(app, store, actions, p),
+  };
+  for (const row of COMMAND_ROWS) {
     plugin.addCommand({
-      id,
-      name,
-      hotkeys: [{ modifiers: ['Mod', 'Shift'], key }],
+      id: row.id,
+      name: row.name,
+      hotkeys: [{ modifiers: ['Mod', 'Shift'], key: row.key }],
       checkCallback: (checking: boolean) => {
         const file = app.workspace.getActiveFile();
-        if (!file) return false;
-        const path = file.path;
-        // Gate on the store index, not a path heuristic: only indexed task files get the command.
-        if (!store.entryByPath(path)) return false;
-        if (!checking) run(path);
+        const path = commandGate(store, file ? file.path : null);
+        if (!path) return false;
+        if (!checking) runners[row.id](path);
         return true;
       },
     });
-  };
-
-  gated('quick-log', '记一条执行记录', 'L', (p) => openQuickLog(app, store, actions, p));
-  gated('log-decision', '快捷标注 · 决策', 'D', (p) => openAnnotate(app, store, actions, p, '决策'));
-  gated('log-comment', '快捷标注 · 评论', 'C', (p) => openAnnotate(app, store, actions, p, '评论'));
-  gated('log-blocker', '快捷标注 · 卡点', 'K', (p) => openAnnotate(app, store, actions, p, '卡点'));
-  gated('set-status', '设置状态', 'S', (p) => openSetStatus(app, store, actions, p));
-  gated('delegate', '委派', 'A', (p) => openDelegate(app, store, actions, p));
+  }
 }
