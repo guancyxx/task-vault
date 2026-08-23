@@ -324,7 +324,9 @@
 | H6 | 内置 localhost API（四端点 + 设置页 + token） | L | unit | FR-034 | ☐ |
 | H7 | 项目面板（统计卡片 + 项目详情视图） | M | manual | FR-035 | ☐ |
 | H8 | 日程面板 + 日历视图（月网格） | L | manual | FR-036 | ☐ |
-| H9 | README：Apple Reminders sync 章 + 权限披露章 | S | — | FR-033/037 | ☐ |
+| H9 | README：Apple Reminders sync 章 + 权限披露章 | S | — | FR-033/037 | ✅ 2026-08-23（PR #14）|
 | H10 | 0.3.0 发版：版本号 + tag + release + attest，部署 vault 后删 Calendar 插件 | S | release+部署核验 | FR-033/036 | ☐ |
+| H11 | README 双语（中英对照 + 语言切换锚点） | M | — | FR-038 | ☐ |
+| H12 | UI 本地化 i18n（字典层 + 设置页语言下拉 + 全文案覆盖） | M | unit+manual | FR-039 | ☐ |
 
 技术依赖（非需求顺序）：H2/H3/H4/H5/H9 相互独立可并行（H3/H4/H9 都动 README，按合并序串行 rebase）；H6 依赖 H5 的 SKILL.md 草案定接口语义；H7 依赖 H2 的 STATUS_META 色条语义（chip 复用）；H8 依赖 H7 的 ItemView 骨架模式；H10 最后，前置 = 全部合并 + 部署 vault 稳定（含手动验证清单通过）+ Calendar 删除由用户确认执行。
