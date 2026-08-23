@@ -4,7 +4,7 @@
 
 | 术语 | 定义 |
 |---|---|
-| 任务文件 (task file) | `03 Tasks/YYYY-MM-DD-<slug>.md`，每任务一个，frontmatter 承载全部结构化字段 |
+| 任务文件 (task file) | `03 Tasks/<项目>/<YYYY-MM-DD>/<slug>.md`（项目/日期两级），每任务一个，frontmatter 承载全部结构化字段 |
 | 身份 (identity) | frontmatter `id`（UUID）。改其他任何字段不换身份——旧系统"整行文本 hash 为 key"的根治点 |
 | 状态机 | inbox→todo→doing⇄waiting / review（agent 交付门禁）/ blocked(推导)→done/cancelled 八态；agent actor 不得直达 done，仅 user 确认通道可完成；转移表见 model/statusMachine.ts |
 | blocked | 非手设状态，由 blocked-by 里存在未终态依赖推导；依赖 done/cancelled 自动解除 |

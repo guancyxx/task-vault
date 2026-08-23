@@ -100,7 +100,9 @@ export function captureToTask(c: Capture, opts: { id: string; now: Date }): Task
   return task;
 }
 
-// `03 Tasks/YYYY-MM-DD-<slug>.md`, adding -2/-3… on collision (contract §5).
+// Legacy single-level helper: builds `<dir>/<dateStr>-<slug>.md` with -2/-3… collision
+// suffixes. Canonical layout is `03 Tasks/<项目>/<YYYY-MM-DD>/<slug>.md` (taskPaths.ts,
+// slug-only filename, no date prefix); this helper has no production caller, kept for tests.
 export function resolveTaskPath(
   dir: string,
   dateStr: string,
