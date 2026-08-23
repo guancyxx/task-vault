@@ -104,7 +104,7 @@ export interface RowContext {
 }
 
 function isTerminal(status: Status): boolean {
-  return (TERMINAL_STATUSES as readonly Status[]).includes(status);
+  return TERMINAL_STATUSES.includes(status);
 }
 
 export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext): HTMLElement {

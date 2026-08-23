@@ -48,7 +48,7 @@ export function isLibraryPath(path: string): boolean {
 // Filesystem-safe folder name: strip slashes/control chars and leading dots, collapse spaces.
 function sanitize(name: string): string {
   const cleaned = name
-    .replace(/[/\\:?*"<>|\x00-\x1f]/g, ' ')
+    .replace(/[/\\:?*"<>|\p{Cc}]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^\.+/, '');

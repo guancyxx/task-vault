@@ -59,7 +59,7 @@ export function legalPathToDone(from: Status): Status[] | null {
       queue.push({ at: next, path: [...path, next] });
     }
   }
-  return null; // unreachable from the current 7-state graph, but keep the guard honest
+  return null; // unreachable from the current 8-state graph, but keep the guard honest
 }
 
 // Fold the whole legal chain from the task's status to done into ONE net result (FR-013): the

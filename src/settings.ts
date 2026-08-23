@@ -1,12 +1,23 @@
 // Obsidian settings UI over ConfigService (FR-022). Thin, manually verified; the config logic
 // and defaults live obsidian-free in config.ts.
 
-import { PluginSettingTab, Setting, type App, type Plugin } from 'obsidian';
+import { PluginSettingTab, Setting, type App, type Plugin, type SettingDefinition } from 'obsidian';
 import type { ConfigService } from './config';
 
 export class TaskVaultSettingTab extends PluginSettingTab {
   constructor(app: App, plugin: Plugin, private config: ConfigService) {
     super(app, plugin);
+  }
+
+  // Declarative settings API (Obsidian 1.13+): lets the in-app settings search index these
+  // controls. Mirrors the names/descriptions rendered in display(); no runtime behavior change.
+  getSettingDefinitions(): SettingDefinition[] {
+    return [
+      { name: '终态 hook (terminal)', description: '任务进入 done/cancelled 时执行的命令。' },
+      { name: '派发 hook (dispatch)', description: '委派任务给 agent 时执行的命令。' },
+      { name: '全天任务默认提醒时刻', description: '无具体时刻的任务，到期日的提醒时间（HH:MM）。' },
+      { name: '兜底派发阈值（分钟）', description: '委派后经过此分钟数仍无接单记录，兜底 cron 补派。' },
+    ];
   }
 
   display(): void {
