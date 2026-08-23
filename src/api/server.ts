@@ -100,6 +100,9 @@ export class ApiServer {
       if (!s) return resolve();
       this.server = null;
       s.close(() => resolve());
+      // Node 18+: drop lingering keep-alive sockets so close() actually resolves instead of
+      // hanging on an idle agent connection — otherwise a restart races an unclosed listener.
+      s.closeAllConnections?.();
     });
   }
 

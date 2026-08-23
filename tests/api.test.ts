@@ -1,3 +1,4 @@
+import net from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ApiServer, type ApiActions } from '../src/api/server';
 import { LOG_HEADING, recordEntry, type EntryInput } from '../src/log/executionLog';
@@ -293,5 +294,34 @@ describe('lifecycle', () => {
     const port = await s.listening();
     expect(port).toBeGreaterThan(0);
     await s.close();
+  });
+
+  // 补强: someone else already holds the port. listen() must fail gracefully — onError fires
+  // (the Notice path), the server is not left listening, and nothing throws synchronously.
+  it('EADDRINUSE → onError fires, server not listening, no crash', async () => {
+    const blocker = net.createServer();
+    const port: number = await new Promise((resolve) => {
+      blocker.listen(0, '127.0.0.1', () => {
+        const a = blocker.address();
+        resolve(a && typeof a === 'object' ? a.port : 0);
+      });
+    });
+    let caught: Error | undefined;
+    const s = new ApiServer({
+      port: () => port,
+      tokens: () => TOKENS,
+      store: h,
+      createTask: h.createTask,
+      actionsFor: h.actionsFor,
+      now: () => NOW,
+      onError: (err) => {
+        caught = err;
+      },
+    });
+    expect(() => s.start()).not.toThrow(); // synchronous start never throws
+    await expect(s.listening()).rejects.toThrow(); // bind failed → never became listening
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as NodeJS.ErrnoException).code).toBe('EADDRINUSE');
+    await new Promise<void>((resolve) => blocker.close(() => resolve()));
   });
 });

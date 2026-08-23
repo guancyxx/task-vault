@@ -95,7 +95,8 @@ protocol covering:
   /tasks/:id`, `POST /tasks/:id/log`) — routes writes through the state machine and gate
 
 The API is not in the current release; until it ships, agents write task files directly
-per the skill protocol.
+per the skill protocol. (It has shipped in the next release on the `main` branch, ahead of
+the tagged v0.3.)
 
 ## Apple Reminders sync
 
@@ -279,7 +280,8 @@ Task Vault 以 agent 优先的方式设计：任何 CLI agent（Hermes、Claude 
 - 可选的内置 localhost API（计划在 v0.3 提供：`POST /tasks`、`GET/PATCH
   /tasks/:id`、`POST /tasks/:id/log`），所有写入都会经过状态机与门禁
 
-当前版本尚未提供该 API；在它发布前，agent 按 skill 协议直接写任务文件。
+当前版本尚未提供该 API；在它发布前，agent 按 skill 协议直接写任务文件。（该 API 已在
+`main` 分支的下一个版本中落地，先于打标的 v0.3。）
 
 ## Apple Reminders sync · Apple 提醒事项同步
 
