@@ -3,18 +3,29 @@
 // translator, so the panel renders wholly in the current UI language and re-renders on a switch.
 
 import { PluginSettingTab, Setting, type App, type Plugin, type SettingDefinition } from 'obsidian';
-import type { ConfigService } from './config';
+import type { AgentTokens, ConfigService } from './config';
 import type { Lang, T } from './i18n';
+
+const AGENTS: readonly (keyof AgentTokens)[] = ['hermes', 'cc', 'codex'];
+
+// 32 hex chars = 16 random bytes. crypto is a desktop/Electron global (already used for UUIDs).
+function randomToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export class TaskVaultSettingTab extends PluginSettingTab {
   // onLangChange fires after the UI-language dropdown writes config, so the plugin can re-render
   // views + relabel commands without a reload (FR-039). getT returns the live translator.
+  // onApiChange fires after any local-API setting writes, so the plugin can start/stop/restart
+  // the http server live (FR-034).
   constructor(
     app: App,
     plugin: Plugin,
     private config: ConfigService,
     private getT: () => T,
     private onLangChange: () => void,
+    private onApiChange: () => void,
   ) {
     super(app, plugin);
   }
@@ -29,6 +40,8 @@ export class TaskVaultSettingTab extends PluginSettingTab {
       { name: t('settings.dispatchHook'), description: t('settings.dispatchHookDesc') },
       { name: t('settings.alldayRemind'), description: t('settings.alldayRemindDesc') },
       { name: t('settings.backstop'), description: t('settings.backstopDesc') },
+      { name: t('settings.apiEnabled'), description: t('settings.apiEnabledDesc') },
+      { name: t('settings.apiPort'), description: t('settings.apiPortDesc') },
     ];
   }
 
@@ -104,5 +117,54 @@ export class TaskVaultSettingTab extends PluginSettingTab {
             if (Number.isFinite(n) && n > 0) void this.config.update({ backstop_minutes: n });
           }),
       );
+
+    new Setting(containerEl).setName(t('settings.apiHeading')).setHeading();
+
+    new Setting(containerEl)
+      .setName(t('settings.apiEnabled'))
+      .setDesc(t('settings.apiEnabledDesc'))
+      .addToggle((tg) =>
+        tg.setValue(cfg.api_enabled).onChange((v) => {
+          void this.config.update({ api_enabled: v }).then(() => this.onApiChange());
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName(t('settings.apiPort'))
+      .setDesc(t('settings.apiPortDesc'))
+      .addText((ta) =>
+        ta
+          .setPlaceholder(String(cfg.api_port))
+          .setValue(String(cfg.api_port))
+          .onChange((v) => {
+            const n = Number(v);
+            if (Number.isInteger(n) && n > 0 && n < 65536) {
+              void this.config.update({ api_port: n }).then(() => this.onApiChange());
+            }
+          }),
+      );
+
+    // Tokens are read live by the running server on each auth check, so changing one needs no
+    // restart — unlike the toggle/port, they don't call onApiChange.
+    for (const agent of AGENTS) {
+      new Setting(containerEl)
+        .setName(t('settings.apiToken', { agent }))
+        .setDesc(t('settings.apiTokenDesc', { agent }))
+        .addText((ta) =>
+          ta.setValue(cfg.agent_tokens[agent] ?? '').onChange((v) => {
+            void this.config.update({ agent_tokens: { ...this.config.get().agent_tokens, [agent]: v } });
+          }),
+        )
+        .addButton((b) =>
+          b.setButtonText(t('settings.apiTokenGenerate')).onClick(() => {
+            void this.config
+              .update({ agent_tokens: { ...this.config.get().agent_tokens, [agent]: randomToken() } })
+              .then(() => this.display()); // re-render so the new plaintext token shows in the field
+          }),
+        );
+    }
+
+    // Plaintext tokens in config.json — surface the risk right under the token rows.
+    new Setting(containerEl).setDesc(t('settings.apiTokenWarning'));
   }
 }

@@ -1,5 +1,8 @@
-import { FileSystemAdapter, Plugin, type Command, type WorkspaceLeaf } from 'obsidian';
+import { FileSystemAdapter, Notice, Plugin, type Command, type WorkspaceLeaf } from 'obsidian';
+import { ApiLifecycle } from './api/lifecycle';
+import { ApiServer } from './api/server';
 import { ConfigService, DEFAULT_CONFIG, normalizeConfig, type Config } from './config';
+import type { Actor } from './model/types';
 import { EMPTY_LEDGER, HookRunner, NodeHookExec, normalizeLedger, type Ledger } from './hooks/hookRunner';
 import { createT, resolveLang, type ResolvedLang, type T } from './i18n';
 import { TaskVaultSettingTab } from './settings';
@@ -35,6 +38,11 @@ export default class TaskVaultPlugin extends Plugin {
   private store!: TaskStore;
   private config!: ConfigService;
   private actions!: TaskActions;
+  // FR-034: built-in localhost API. The lifecycle serializes every start/stop so a fast settings
+  // toggle can never orphan a listener.
+  private apiLifecycle!: ApiLifecycle;
+  private apiSource!: VaultSource;
+  private apiHooks!: HookRunner;
   // FR-039: current UI language + translator. Views/commands read `this.t` live via a getter,
   // so a language switch takes effect on the next render / palette open — no plugin reload.
   private lang: ResolvedLang = 'zh-CN';
@@ -68,6 +76,12 @@ export default class TaskVaultPlugin extends Plugin {
     const source = new VaultSource(this.app);
     this.store = new TaskStore(source, source, () => new Date(), source);
     this.actions = new TaskActions(this.app, this.store, source, hooks, 'user', () => new Date(), getT);
+    this.apiSource = source;
+    this.apiHooks = hooks;
+    this.apiLifecycle = new ApiLifecycle(
+      () => this.makeApiServer(),
+      () => this.config.get().api_enabled,
+    );
 
     const onCapture = async (text: string, now: Date): Promise<void> => {
       const capture = parseCapture(text, now);
@@ -119,7 +133,14 @@ export default class TaskVaultPlugin extends Plugin {
     // Build the index once the vault's file list is ready, then let events keep it live.
     this.app.workspace.onLayoutReady(() => void this.store.scan());
 
-    this.addSettingTab(new TaskVaultSettingTab(this.app, this, this.config, getT, () => this.applyLanguage()));
+    this.addSettingTab(
+      new TaskVaultSettingTab(this.app, this, this.config, getT, () => this.applyLanguage(), () =>
+        void this.reconcileApi(),
+      ),
+    );
+
+    // Start the local API if enabled (FR-034). onunload closes it.
+    void this.reconcileApi();
     // 'vault' lucide icon — matches the Check Seal logo (vault door + check).
     this.ribbonEl = this.addRibbonIcon('vault', this.t('ribbon.open'), () => void this.activateView());
     // The three chrome commands + the six task commands. All names resolve via `this.t`; on a
@@ -133,6 +154,31 @@ export default class TaskVaultPlugin extends Plugin {
       // task, with default Mod+Shift L/D/C/K/S/A hotkeys.
       ...registerCommands(this, this.app, this.store, this.actions, getT),
     ];
+  }
+
+  onunload(): void {
+    void this.apiLifecycle.close();
+  }
+
+  // Start/stop/restart the local API to match config (FR-034). Serialized through ApiLifecycle so a
+  // rapid toggle never orphans a listener; a bind failure (e.g. EADDRINUSE) surfaces a Notice via
+  // onError, never crashes.
+  private reconcileApi(): Promise<void> {
+    return this.apiLifecycle.reconcile();
+  }
+
+  private makeApiServer(): ApiServer {
+    return new ApiServer({
+      port: () => this.config.get().api_port,
+      tokens: () => this.config.get().agent_tokens,
+      store: this.store,
+      createTask: (capture, now, actorSource) => this.apiSource.createTaskFile(capture, now, actorSource),
+      actionsFor: (actor: Actor) =>
+        new TaskActions(this.app, this.store, this.apiSource, this.apiHooks, actor, () => new Date(), () => this.t),
+      now: () => new Date(),
+      onError: (err) =>
+        new Notice(this.t('api.portError', { port: this.config.get().api_port, err: String(err) })),
+    });
   }
 
   // Resolve the effective language from config + Obsidian's UI language and rebuild the translator.
