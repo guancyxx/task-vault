@@ -16,23 +16,49 @@ Path: `03 Tasks/<project>/<YYYY-MM-DD>/<slug>.md` — project folder derives fro
 `project` field (strip `[[]]`), else the first `repo/*` tag, else `_未分类`; the date folder
 is the `created` date; filename = title slug (no date prefix; `-2`/`-3` on collision).
 
+Full frontmatter schema (fields beyond the basics are optional — omit rather than
+write empty):
+
+| Field | Meaning | Notes |
+|---|---|---|
+| `id` | UUID | identity; never change after creation |
+| `title` | short verb phrase | ≤20 characters (CJK chars count as 1) |
+| `status` | one of `inbox\|todo\|doing\|review\|waiting\|blocked\|done\|cancelled` | `blocked` is derived, never hand-set |
+| `start` | planned start (date or datetime) | tasks not yet started stay out of Today |
+| `due` | deadline (date = all-day / datetime = hard) | no explicit deadline → today 22:00 |
+| `remind` | reminder offset (m/h/d) | default: due time, or 09:00 for all-day |
+| `created` | creation timestamp | `YYYY-MM-DDTHH:MM` |
+| `started` | first doing-transition time | maintained by the plugin — never hand-write |
+| `completed` | terminal-state time | maintained by the plugin — never hand-write |
+| `priority` | `high\|normal\|low` | |
+| `source` | `user\|siri\|hermes\|cc\|codex\|lark\|migration` | who created it |
+| `project` | `"[[名称]]"` wikilink or plain | drives the folder |
+| `area` | broader area (optional) | |
+| `parent` | UUID of parent task | sub-task linkage |
+| `blocked-by` | list of blocking task UUIDs | drives the derived `blocked` state |
+| `assignee` | current executor | `user` or an agent id |
+| `dispatched` | last dispatch timestamp | written by a real dispatch only — never hand-write |
+| `tags` | free tags; `repo/<name>` tags are folder fallback | |
+| `mirror` | Apple Reminders sync block | **owned by the external syncer — never touch** |
+
 ```yaml
 ---
-id: <UUID>                    # never change after creation
-title: 简短动词短语            # ≤20 chars
-status: todo                  # inbox|todo|doing|review|waiting|blocked(derived)|done|cancelled
-due: 2026-08-20T22:00         # no explicit deadline → today 22:00, never tomorrow
+id: 36c00435-a56b-4dea-a355-c00c32381709
+title: 修正导航高亮溢出
+status: todo
+due: 2026-08-20T22:00
 created: 2026-08-20T02:05
-priority: normal              # high|normal|low
-source: hermes                # user|siri|hermes|cc|codex|lark|migration
-project: "[[学习]]"           # optional
-assignee: user                # who owns execution now
+priority: normal
+source: hermes
+project: "[[学习]]"
+assignee: user
 tags: [学习]
 ---
 ```
 
-Body has exactly two sections: `## 任务描述` (background/links/scope) and `## 执行记录`
-(append-only timeline). A delegated task also carries `## 委派` holding the instruction.
+Body: two core sections — `## 任务描述` (background/links/scope) and `## 执行记录`
+(append-only timeline). A delegated task additionally carries `## 委派` holding the
+instruction.
 
 ## Write protocol (hard rules)
 
@@ -73,29 +99,35 @@ Body has exactly two sections: `## 任务描述` (background/links/scope) and `#
 Legal transitions (state machine, enforced):
 
 ```
-inbox → todo | cancelled        todo → doing | cancelled
-doing → waiting | review | done | cancelled
-review → done | doing | cancelled
-waiting → todo | doing | cancelled
-cancelled → todo (reopen)
+inbox     → todo | cancelled
+todo      → doing | cancelled
+doing     → waiting | review | done | cancelled
+review    → done | doing | cancelled
+waiting   → todo | doing | cancelled
+blocked   → waiting | cancelled        # entered only via unresolved blocked-by
+done      → (terminal)
+cancelled → todo                        # reopen
 ```
 
-**Review gate (critical for agents):** actor `hermes`/`cc`/`codex` can NEVER transition any
+**Review gate (critical for agents):** actor `hermes`/`cc`/`codex` must NEVER transition a
 task to `done` — the state machine rejects it. Agents deliver to `review` and stop. Only
 actor `user` (plugin UI, Reminders checkbox, or an explicit in-chat approval) can confirm
-`done`.
+`done`. The FR-030a citation channel below is the ONE exception; there are no others.
 
-**In-chat approval channel:** when the user explicitly approves closure in chat
-(e.g. 「做」/「do」), the agent MAY write `done`, but must include a verifiable citation line
-inside (or after) the done entry:
+**In-chat approval exception (FR-030a):** when the user explicitly approves closure in
+chat (e.g. 「做」/「do」), the agent MAY write `done`, but the done entry itself must carry a
+verifiable citation as a continuation line of that entry:
 
 ```
-user-confirm: session=<sid> msg=<id> quote="<exact substring of the user message>"
+- 2026-08-23 20:51 · **todo→done** · `hermes`
+  完成标准已满足并经用户确认（msg 65363 为在席确认）。
+  user-confirm: session=20260823_110322_61ec24 msg=65069 quote="PR 合并、总结交完才算 done"
 ```
 
-Gate checks format only; an audit script verifies the citation against the agent's session
-store (message exists ∧ role=user ∧ session matches ∧ quote is a substring ∧ time precedes
-the done write ∧ not a system injection). Failed verification = unreviewed.
+The gate checks format only; a deployment-side auditor verifies each citation against the
+originating chat store (message exists ∧ role=user ∧ session matches ∧ quote is an exact
+substring ∧ the message time is not later than the done write ∧ not a system injection).
+Failed verification = unreviewed.
 
 ## Delegation protocol
 
@@ -110,20 +142,13 @@ the done write ∧ not a system injection). Failed verification = unreviewed.
 5. The task prompt handed to the agent should include: task file path (absolute or
    obsidian:// URI), the instruction, and this protocol (or a pointer to this file).
 
-## Local HTTP API (v0.3+, if enabled)
+## Local HTTP API (planned for v0.3, NOT yet implemented)
 
-Prefer the plugin's built-in API over raw file writes when available — it routes through
-the state machine, the review gate, and hooks:
-
-- `POST /tasks` — create (body: capture-syntax line, parsed by the plugin)
-- `GET  /tasks/:id` — read one task
-- `PATCH /tasks/:id` — patch fields (`status` transitions are validated; agent tokens
-  cannot reach `done`)
-- `POST /tasks/:id/log` — append an execution-log entry
-
-Auth: `Authorization: Bearer <token>`; bound to 127.0.0.1 only; off by default (enable in
-the plugin settings, which also issues per-agent tokens). Raw file writes remain legal for
-agents without API access — follow the write protocol above exactly.
+Once shipped, the plugin's built-in API will let agents route writes through the state
+machine, the review gate, and hooks — `POST /tasks`, `GET /tasks/:id`, `PATCH /tasks/:id`,
+`POST /tasks/:id/log`, Bearer-token auth, 127.0.0.1 only, off by default. Until then,
+agents write task files directly following the write protocol above. Do not document
+enable-steps for a feature that does not exist in the current release.
 
 ## Pitfalls (learned the hard way)
 
@@ -137,9 +162,9 @@ agents without API access — follow the write protocol above exactly.
    has an owner, or a line silently stops being generated.
 4. **The running Obsidian may hold an old plugin build** — after redeploying the plugin,
    reload Obsidian (or disable/enable the plugin) before trusting new gate behavior.
-5. **External file writes don't fire editor events** — the plugin indexes them via a
-   low-level `vault.on('raw')` watcher; if a just-written file doesn't appear in the
-   sidebar, it's usually the debounce/burst path, not data loss.
+5. **Overdue is not auto-extension.** Tasks are never rescheduled automatically. Carrying a
+   task to another day happens only when the user asks: patch `due` to the new date and
+   append a log entry stating the change.
 
 ## Verification checklist (after any task-file write)
 

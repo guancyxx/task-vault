@@ -96,11 +96,11 @@ protocol covering:
 - status transitions & the review gate (agents deliver to `review`, never `done`,
   unless carrying a verifiable in-chat approval citation)
 - delegation protocol (dispatch hooks, acceptance entries, backstop)
-- the optional built-in localhost API (`POST /tasks`, `GET/PATCH /tasks/:id`,
-  `POST /tasks/:id/log`) — routes writes through the state machine and gate
+- the optional built-in localhost API (planned for v0.3 — `POST /tasks`, `GET/PATCH
+  /tasks/:id`, `POST /tasks/:id/log`) — routes writes through the state machine and gate
 
-For the local API: enable it in Settings → Task Vault (off by default; issues a per-agent
-Bearer token; binds 127.0.0.1 only).
+The API is not in the current release; until it ships, agents write task files directly
+per the skill protocol.
 
 ## Limitations
 
