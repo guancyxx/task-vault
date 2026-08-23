@@ -156,6 +156,11 @@ declare module 'obsidian' {
     inputEl: HTMLTextAreaElement;
   }
   export type ToggleComponent = ValueComponent<boolean>;
+  export interface DropdownComponent extends ValueComponent<string> {
+    addOption(value: string, display: string): this;
+    addOptions(options: Record<string, string>): this;
+    selectEl: HTMLSelectElement;
+  }
   export interface ButtonComponent {
     setButtonText(text: string): this;
     setCta(): this;
@@ -172,6 +177,7 @@ declare module 'obsidian' {
     addText(cb: (text: TextComponent) => void): this;
     addTextArea(cb: (text: TextAreaComponent) => void): this;
     addToggle(cb: (toggle: ToggleComponent) => void): this;
+    addDropdown(cb: (dropdown: DropdownComponent) => void): this;
     addButton(cb: (button: ButtonComponent) => void): this;
   }
 

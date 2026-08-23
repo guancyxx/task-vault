@@ -3,6 +3,7 @@
 // reads the same file. Pure + obsidian-free so it unit-tests; the Setting UI lives in settings.ts.
 
 import type { JsonStore } from './store/jsonStore';
+import type { Lang } from './i18n';
 
 export interface Config {
   version: number;
@@ -10,6 +11,7 @@ export interface Config {
   dispatch_hook: string; // '' = disabled
   default_remind: { allday: string; timed: string };
   backstop_minutes: number;
+  ui_language: Lang; // FR-039: 'auto' follows Obsidian's UI language
 }
 
 export const DEFAULT_CONFIG: Config = {
@@ -18,7 +20,10 @@ export const DEFAULT_CONFIG: Config = {
   dispatch_hook: '',
   default_remind: { allday: '09:00', timed: 'due' },
   backstop_minutes: 30,
+  ui_language: 'auto',
 };
+
+const UI_LANGUAGES: readonly Lang[] = ['auto', 'zh-CN', 'en'];
 
 // Tolerate partial/legacy/corrupt JSON: every missing key falls back to the default (contract §2).
 export function normalizeConfig(raw: unknown): Config {
@@ -34,6 +39,10 @@ export function normalizeConfig(raw: unknown): Config {
     },
     backstop_minutes:
       typeof r.backstop_minutes === 'number' ? r.backstop_minutes : DEFAULT_CONFIG.backstop_minutes,
+    ui_language:
+      typeof r.ui_language === 'string' && UI_LANGUAGES.includes(r.ui_language)
+        ? r.ui_language
+        : DEFAULT_CONFIG.ui_language,
   };
 }
 

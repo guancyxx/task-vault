@@ -12,31 +12,34 @@ import { TRANSITIONS } from '../model/statusMachine';
 import type { Status, Task } from '../model/types';
 import type { TaskActions } from '../store/taskActions';
 import type { TaskStore } from '../store/taskStore';
-import { STATUS_LABEL, STATUS_META } from './taskRow';
+import type { MessageKey, T } from '../i18n';
+import { STATUS_META, statusLabel } from './taskRow';
 import { buildTaskPrompt, obsidianUri } from './taskPrompt';
 import { notifyDelegateResult, renderDelegatePanel } from './delegatePanel';
 
 // Quick-fill entry kinds; plain progress carries no kind. Shared with quickLogModal (FR-027).
-export const KINDS: Array<{ value: '' | EntryKind; label: string }> = [
-  { value: '', label: '进展' },
-  { value: '决策', label: '决策' },
-  { value: '评论', label: '评论' },
-  { value: '卡点', label: '卡点' },
+// `value` is the EntryKind written to the file (data — never localized); `labelKey` is the
+// dictionary key for the select option shown to the user (FR-039).
+export const KINDS: Array<{ value: '' | EntryKind; labelKey: MessageKey }> = [
+  { value: '', labelKey: 'kind.progress' },
+  { value: '决策', labelKey: 'kind.decision' },
+  { value: '评论', labelKey: 'kind.comment' },
+  { value: '卡点', labelKey: 'kind.blocker' },
 ];
 
-export function openDetail(app: App, store: TaskStore, actions: TaskActions, path: string): void {
+export function openDetail(app: App, store: TaskStore, actions: TaskActions, path: string, t: T): void {
   const entry = store.entryByPath(path);
   if (!entry) {
-    new Notice('任务不存在或未索引');
+    new Notice(t('detail.notFound'));
     return;
   }
-  new DetailModal(app, actions, path, entry.task).open();
+  new DetailModal(app, actions, path, entry.task, t).open();
 }
 
 // Right-click entry: same modal, opened from a row contextmenu (user request 2026-08-19).
 // The evt is accepted so callers can anchor menus later; the modal itself is centered.
-export function openDetailAt(app: App, store: TaskStore, actions: TaskActions, path: string, _evt: MouseEvent): void {
-  openDetail(app, store, actions, path);
+export function openDetailAt(app: App, store: TaskStore, actions: TaskActions, path: string, _evt: MouseEvent, t: T): void {
+  openDetail(app, store, actions, path, t);
 }
 
 class DetailModal extends Modal {
@@ -44,7 +47,7 @@ class DetailModal extends Modal {
   // and can also feed the copied prompt.
   private instruction = '';
 
-  constructor(app: App, private actions: TaskActions, private path: string, private task: Task) {
+  constructor(app: App, private actions: TaskActions, private path: string, private task: Task, private t: T) {
     super(app);
   }
 
@@ -78,22 +81,23 @@ class DetailModal extends Modal {
 
   // 状态更改: current state chip + one button per legal target (no nested menu).
   private renderStatus(parent: HTMLElement): void {
+    const t = this.t;
     const meta = STATUS_META[this.task.status];
-    const body = this.panel(parent, '状态更改', meta.cls);
+    const body = this.panel(parent, t('panel.status'), meta.cls);
     body.createSpan({
       cls: `tv-chip tv-chip-now tv-chip-${meta.cls}`,
-      text: `${meta.glyph} ${STATUS_LABEL[this.task.status]}`,
+      text: `${meta.glyph} ${statusLabel(this.task.status, t)}`,
     });
     const targets = TRANSITIONS[this.task.status];
     if (targets.length === 0) {
-      body.createSpan({ cls: 'tv-hint', text: '终态，无可用转移' });
+      body.createSpan({ cls: 'tv-hint', text: t('detail.terminalNoTransition') });
       return;
     }
     body.createSpan({ cls: 'tv-arrow', text: '→' });
     for (const to of targets) {
       const btn = body.createEl('button', {
         cls: `tv-chip tv-chip-btn tv-chip-${STATUS_META[to].cls}`,
-        text: `${STATUS_META[to].glyph} ${STATUS_LABEL[to]}`,
+        text: `${STATUS_META[to].glyph} ${statusLabel(to, t)}`,
       });
       btn.addEventListener('click', () => this.setStatus(to));
     }
@@ -108,17 +112,18 @@ class DetailModal extends Modal {
   // 快速填入 (SC-010): kind select + one line → append to 执行记录. Enter OR the 填入 button
   // commits — the button was missing, which made the panel read as decorative (user report).
   private renderQuickFill(parent: HTMLElement): void {
-    const body = this.panel(parent, '快速填入');
+    const t = this.t;
+    const body = this.panel(parent, t('panel.quickFill'));
     const row = body.createDiv({ cls: 'tv-detail-quick' });
     const select = row.createEl('select');
-    for (const k of KINDS) select.createEl('option', { text: k.label, attr: { value: k.value } });
-    const input = row.createEl('input', { attr: { type: 'text', placeholder: '记一条…回车或点「填入」' } });
-    const btn = row.createEl('button', { cls: 'tv-btn tv-btn-cta', text: '填入' });
+    for (const k of KINDS) select.createEl('option', { text: t(k.labelKey), attr: { value: k.value } });
+    const input = row.createEl('input', { attr: { type: 'text', placeholder: t('detail.quickPlaceholder') } });
+    const btn = row.createEl('button', { cls: 'tv-btn tv-btn-cta', text: t('detail.fillBtn') });
 
     const submit = (): void => {
       const text = input.value.trim();
       if (!text) {
-        new Notice('先写点内容');
+        new Notice(t('detail.emptyContent'));
         input.focus();
         return;
       }
@@ -126,7 +131,7 @@ class DetailModal extends Modal {
       void this.actions.appendQuick(this.path, text, kind);
       input.value = '';
       input.focus();
-      new Notice('已写入执行记录');
+      new Notice(t('detail.wroteLog'));
     };
 
     btn.addEventListener('click', submit);
@@ -140,8 +145,9 @@ class DetailModal extends Modal {
   // Panel DOM + result notices are shared with the 委派 command via delegatePanel; this callback
   // adds the popover-specific bits (optimistic assignee, re-render).
   private renderDelegation(parent: HTMLElement): void {
-    const body = this.panel(parent, '委派');
-    renderDelegatePanel(body, {
+    const t = this.t;
+    const body = this.panel(parent, t('panel.delegate'));
+    renderDelegatePanel(body, t, {
       assignee: this.task.assignee,
       instruction: this.instruction,
       onInstructionChange: (v) => {
@@ -152,7 +158,7 @@ class DetailModal extends Modal {
         btn.disabled = true;
         void this.actions.delegate(this.path, assignee, text).then((res) => {
           btn.disabled = false;
-          notifyDelegateResult(res, assignee);
+          notifyDelegateResult(res, assignee, t);
           this.render();
         });
       },
@@ -160,9 +166,10 @@ class DetailModal extends Modal {
   }
 
   private renderFooter(parent: HTMLElement): void {
+    const t = this.t;
     const footer = parent.createDiv({ cls: 'tv-detail-footer' });
 
-    const prompt = footer.createEl('button', { cls: 'tv-btn tv-btn-cta', text: '复制任务提示词' });
+    const prompt = footer.createEl('button', { cls: 'tv-btn tv-btn-cta', text: t('detail.copyPrompt') });
     prompt.addEventListener('click', () => {
       void navigator.clipboard.writeText(
         buildTaskPrompt({
@@ -172,16 +179,16 @@ class DetailModal extends Modal {
           basePath: this.basePath(),
         }),
       );
-      new Notice('已复制任务提示词，粘给 agent 即可');
+      new Notice(t('detail.copiedPrompt'));
     });
 
-    const copy = footer.createEl('button', { cls: 'tv-btn', text: '复制链接' });
+    const copy = footer.createEl('button', { cls: 'tv-btn', text: t('detail.copyLink') });
     copy.addEventListener('click', () => {
       void navigator.clipboard.writeText(obsidianUri(this.app.vault.getName(), this.path));
-      new Notice('已复制 obsidian:// 链接');
+      new Notice(t('detail.copiedLink'));
     });
 
-    const summary = footer.createEl('button', { cls: 'tv-btn', text: '总结' });
+    const summary = footer.createEl('button', { cls: 'tv-btn', text: t('detail.summary') });
     summary.addEventListener('click', () => void this.actions.manualSummary(this.path));
   }
 
@@ -190,9 +197,4 @@ class DetailModal extends Modal {
     const adapter = this.app.vault.adapter;
     return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : '';
   }
-}
-
-// Convenience so main can pass a DetailHandler bound to the store+actions.
-export function detailHandler(app: App, store: TaskStore, actions: TaskActions): (path: string) => void {
-  return (path: string) => openDetail(app, store, actions, path);
 }

@@ -4,39 +4,48 @@
 
 import { Modal, type App } from 'obsidian';
 import { STATUSES, type Status } from '../model/types';
-import { DELEGATE_GLYPH, STATUS_LABEL, STATUS_META } from './taskRow';
+import type { T } from '../i18n';
+import { DELEGATE_GLYPH, STATUS_META, statusLabel } from './taskRow';
 
 // The blocked state is derived, not set by hand — call that out in the legend.
-const LEGEND_HINT: Partial<Record<Status, string>> = {
-  blocked: '（依赖未完成，自动推导）',
+const LEGEND_HINT: Partial<Record<Status, 'legend.blockedHint'>> = {
+  blocked: 'legend.blockedHint',
 };
 
 export class LegendModal extends Modal {
+  constructor(app: App, private t: T) {
+    super(app);
+  }
+
   onOpen(): void {
     const { contentEl } = this;
+    const t = this.t;
     contentEl.empty();
     contentEl.addClass('tv-legend');
-    this.setTitle('Task Vault 图例');
+    this.setTitle(t('legend.title'));
 
-    contentEl.createEl('h3', { text: '状态' });
+    contentEl.createEl('h3', { text: t('legend.statusHeading') });
     for (const status of STATUSES) {
       const meta = STATUS_META[status];
       const row = contentEl.createDiv({ cls: 'tv-legend-row' });
       // Real 4px color rail sample — same painter + status class the rows render (FR-031):
       // two different elements (legend row vs task row) sharing one rail painter in CSS.
+      // Status labels re-source via `t` so the legend follows the active language.
       row.createSpan({ cls: ['tv-legend-rail', `tv-status-${meta.cls}`] });
       row.createSpan({ cls: 'tv-glyph', text: meta.glyph });
-      row.createSpan({ cls: 'tv-legend-label', text: `${STATUS_LABEL[status]}${LEGEND_HINT[status] ?? ''}` });
+      const hint = LEGEND_HINT[status] ? t(LEGEND_HINT[status]!) : '';
+      row.createSpan({ cls: 'tv-legend-label', text: `${statusLabel(status, t)}${hint}` });
     }
 
-    contentEl.createEl('h3', { text: '时间徽章' });
-    this.badge(contentEl, 'tv-countdown', '剩 3h12m', '距截止不足 24h 的倒计时');
-    this.badge(contentEl, 'tv-overdue', '超期 2d', '已过截止（done 永不显示）');
+    contentEl.createEl('h3', { text: t('legend.timeHeading') });
+    // Badge samples mirror what time/timeRules.ts actually renders (kept literal); descriptions localize.
+    this.badge(contentEl, 'tv-countdown', '剩 3h12m', t('legend.countdownDesc'));
+    this.badge(contentEl, 'tv-overdue', '超期 2d', t('legend.overdueDesc'));
 
-    contentEl.createEl('h3', { text: '委派' });
+    contentEl.createEl('h3', { text: t('legend.delegateHeading') });
     const del = contentEl.createDiv({ cls: 'tv-legend-row' });
     del.createSpan({ cls: 'tv-delegate', text: DELEGATE_GLYPH });
-    del.createSpan({ cls: 'tv-legend-label', text: '已委派给 agent（assignee ≠ 自己）' });
+    del.createSpan({ cls: 'tv-legend-label', text: t('legend.delegateDesc') });
   }
 
   private badge(parent: HTMLElement, cls: string, text: string, desc: string): void {
@@ -50,6 +59,6 @@ export class LegendModal extends Modal {
   }
 }
 
-export function openLegend(app: App): void {
-  new LegendModal(app).open();
+export function openLegend(app: App, t: T): void {
+  new LegendModal(app, t).open();
 }

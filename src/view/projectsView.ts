@@ -6,10 +6,14 @@
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import { projectStats, type ProjectStat } from '../model/projectStats';
 import type { TaskStore } from '../store/taskStore';
+import { createT, type T } from '../i18n';
 
 export const VIEW_TYPE_TASK_VAULT_PROJECTS = 'task-vault-projects';
 
 export type OpenProjectDetail = (project: string) => void;
+
+// Fallback translator when no getT is injected (never in production — the plugin always wires one).
+const DEFAULT_T: T = createT('zh-CN');
 
 export class ProjectVaultView extends ItemView {
   private unsubscribe?: () => void;
@@ -18,6 +22,7 @@ export class ProjectVaultView extends ItemView {
     leaf: WorkspaceLeaf,
     private store: TaskStore,
     private openDetail: OpenProjectDetail,
+    private getT: () => T = () => DEFAULT_T,
     private now: () => Date = () => new Date(),
   ) {
     super(leaf);
@@ -28,7 +33,7 @@ export class ProjectVaultView extends ItemView {
   }
 
   getDisplayText(): string {
-    return '项目面板';
+    return this.getT()('projects.title');
   }
 
   getIcon(): string {
@@ -46,34 +51,35 @@ export class ProjectVaultView extends ItemView {
 
   render(): void {
     const root = this.containerEl;
+    const t = this.getT();
     root.empty();
     root.addClass('tv-projects');
 
     const header = root.createDiv({ cls: 'tv-proj-header' });
-    header.createSpan({ cls: 'tv-proj-header-title', text: '项目面板' });
+    header.createSpan({ cls: 'tv-proj-header-title', text: t('projects.title') });
 
     const stats = projectStats(
       this.store.allEntries().map((e) => e.task),
       this.now(),
     );
     if (stats.length === 0) {
-      root.createDiv({ cls: 'tv-empty', text: '暂无项目' });
+      root.createDiv({ cls: 'tv-empty', text: t('projects.empty') });
       return;
     }
 
     const grid = root.createDiv({ cls: 'tv-proj-grid' });
-    for (const stat of stats) this.renderCard(grid, stat);
+    for (const stat of stats) this.renderCard(grid, stat, t);
   }
 
-  private renderCard(grid: HTMLElement, stat: ProjectStat): void {
+  private renderCard(grid: HTMLElement, stat: ProjectStat, t: T): void {
     const card = grid.createDiv({ cls: 'tv-proj-card' });
     card.createDiv({ cls: 'tv-proj-name', text: stat.project });
 
     const metrics = card.createDiv({ cls: 'tv-proj-metrics' });
-    metric(metrics, stat.open, '开放', 'open');
-    metric(metrics, stat.overdue, '过期', stat.overdue > 0 ? 'overdue' : 'muted');
-    metric(metrics, stat.weekDone, '本周完成', 'muted');
-    metric(metrics, stat.agents, '在跑', stat.agents > 0 ? 'agents' : 'muted');
+    metric(metrics, stat.open, t('projects.open'), 'open');
+    metric(metrics, stat.overdue, t('projects.overdue'), stat.overdue > 0 ? 'overdue' : 'muted');
+    metric(metrics, stat.weekDone, t('projects.weekDone'), 'muted');
+    metric(metrics, stat.agents, t('projects.running'), stat.agents > 0 ? 'agents' : 'muted');
 
     card.addEventListener('click', () => this.openDetail(stat.project));
   }
