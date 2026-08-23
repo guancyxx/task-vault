@@ -21,6 +21,7 @@ export const zh: Record<keyof typeof en, string> = {
   'status.done': '已完成',
   'status.cancelled': '已取消',
 
+  'sidebar.tasks': '📋 任务面板',
   'sidebar.projects': '📁 项目面板',
   'sidebar.empty': '—',
   'sidebar.uncategorized': '未分类',

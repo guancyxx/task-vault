@@ -10,7 +10,8 @@
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import { monthGrid, type CalCell, type CalChip } from '../model/agendaGroup';
 import type { TaskStore } from '../store/taskStore';
-import { createT, type MessageKey, type T } from '../i18n';
+import { createT, type MessageKey, type ResolvedLang, type T } from '../i18n';
+import { renderViewSwitch } from './viewSwitch';
 
 export const VIEW_TYPE_TASK_VAULT_CALENDAR = 'task-vault-calendar';
 
@@ -39,6 +40,10 @@ export class CalendarVaultView extends ItemView {
     private store: TaskStore,
     private getT: () => T = () => DEFAULT_T,
     private now: () => Date = () => new Date(),
+    private getLang: () => ResolvedLang = () => 'zh-CN',
+    private onOpenTasks?: () => void,
+    private onOpenProjects?: () => void,
+    private onOpenAgenda?: () => void,
   ) {
     super(leaf);
     const n = this.now();
@@ -83,11 +88,22 @@ export class CalendarVaultView extends ItemView {
     root.empty();
     root.addClass('tv-calendar');
 
+    // Cross-view switch bar (任务/项目/日程 three parallel links) — the calendar is reached from the
+    // agenda, so it links back to all three panels (H7 tv-projects-link form). Links render only when
+    // their handler is wired.
+    if (this.onOpenTasks || this.onOpenProjects || this.onOpenAgenda) {
+      renderViewSwitch(root.createDiv({ cls: 'tv-cockpit-header' }), t, {
+        openTasks: this.onOpenTasks,
+        openProjects: this.onOpenProjects,
+        openAgenda: this.onOpenAgenda,
+      });
+    }
+
     this.renderHeader(root, t);
     this.renderWeekdays(root, t);
 
     const items = this.store.allEntries().map((e) => ({ task: e.task, path: e.path }));
-    const cells = monthGrid(this.viewDate, items, this.now());
+    const cells = monthGrid(this.viewDate, items, this.now(), this.getLang());
     const grid = root.createDiv({ cls: 'tv-cal-grid' });
     for (const cell of cells) this.renderCell(grid, cell, t);
   }
@@ -119,7 +135,7 @@ export class CalendarVaultView extends ItemView {
     el.toggleClass('tv-cal-today', cell.isToday);
     el.createSpan({ cls: 'tv-cal-daynum', text: String(cell.date.getDate()) });
     // Click empty space in the cell → open that day's daily note (native link resolution).
-    el.addEventListener('click', () => void this.app.workspace.openLinkText(cell.key, '', false));
+    el.addEventListener('click', () => void this.app.workspace.openLinkText(cell.key, '', false).catch(() => {}));
 
     const shown = cell.chips.slice(0, MAX_CHIPS);
     for (const chip of shown) this.renderChip(el, chip);
@@ -129,14 +145,17 @@ export class CalendarVaultView extends ItemView {
   }
 
   private renderChip(cell: HTMLElement, chip: CalChip): void {
-    const el = cell.createDiv({ cls: `tv-cal-chip tv-status-${chip.cls}` });
+    // Effective status (blocked derivation is the store's job, FR-031 同源); the pure fn keeps raw
+    // status in chip.cls. Terminal chips are never blocked, so this is a no-op for them.
+    const cls = this.store.effectiveStatus(chip.task.id) ?? chip.cls;
+    const el = cell.createDiv({ cls: `tv-cal-chip tv-status-${cls}` });
     el.toggleClass('tv-cal-chip-done', chip.terminal);
     el.createSpan({ cls: `tv-cal-pri tv-pri-${chip.priority}`, text: chip.priority });
     el.createSpan({ cls: 'tv-cal-chip-title', text: (chip.time ? `${chip.time} ` : '') + chip.task.title });
     el.setAttribute('title', chip.task.title);
     el.addEventListener('click', (evt) => {
       evt.stopPropagation(); // don't also open the day's daily note
-      void this.app.workspace.openLinkText(chip.path, '', false);
+      void this.app.workspace.openLinkText(chip.path, '', false).catch(() => {});
     });
   }
 }

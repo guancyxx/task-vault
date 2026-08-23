@@ -107,15 +107,35 @@
 .tv-status-blocked { --tv-rail: var(--color-red); }
 .tv-status-done    { --tv-rail: var(--color-green); }
 /* cancelled: grey diagonal stripe rail — distinct from flat grey inbox.
-   Scoped to the two real rail hosts (row, legend sample) so other tv-status-*
-   consumers (e.g. .tv-panel cards) never grow a stripe. */
+   Scoped to the real rail hosts so other tv-status-* consumers (e.g. .tv-panel cards) never grow a
+   stripe. Host list: sidebar row + legend sample (H2 ::before rail) plus the agenda timeline row and
+   calendar chip — those carry the rail as a border-left, so cancelled hands it to a ::before stripe
+   (a border can't paint a gradient). */
 .tv-row.tv-status-cancelled::before,
-.tv-legend-rail.tv-status-cancelled::before {
+.tv-legend-rail.tv-status-cancelled::before,
+.tv-tl-row.tv-status-cancelled::before,
+.tv-cal-chip.tv-status-cancelled::before {
   background: repeating-linear-gradient(
     45deg,
     var(--text-faint) 0 2px,
     transparent 2px 4px
   );
+}
+/* timeline row + chip: give cancelled a positioned ::before over the 3px left gutter and drop the
+   solid border so only the stripe shows. */
+.tv-tl-row.tv-status-cancelled,
+.tv-cal-chip.tv-status-cancelled {
+  position: relative;
+  border-left-color: transparent;
+}
+.tv-tl-row.tv-status-cancelled::before,
+.tv-cal-chip.tv-status-cancelled::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
 }
 
 .tv-rail {

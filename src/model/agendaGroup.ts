@@ -67,7 +67,9 @@ function priTag(task: Task): string {
 }
 
 // FR-036 今日时间轴分组: timed 按时刻升序在前、all-day 靠后、终态今日完结折叠组。
-export function todayAgenda(items: readonly DatedTask[], now: Date): TodayAgenda {
+// `locale` drives title tie-break collation (BCP47, e.g. 'zh-CN' | 'en') — passed by the view so
+// sort order follows the active UI language instead of a hardcoded 'zh'.
+export function todayAgenda(items: readonly DatedTask[], now: Date, locale = 'zh-CN'): TodayAgenda {
   const today = dayKey(now);
   const timed: AgendaItem[] = [];
   const allDay: AgendaItem[] = [];
@@ -86,27 +88,27 @@ export function todayAgenda(items: readonly DatedTask[], now: Date): TodayAgenda
     else allDay.push({ task, path, overdue: false });
   }
 
+  const byTitle = (a: AgendaItem, b: AgendaItem): number =>
+    a.task.title.localeCompare(b.task.title, locale);
   timed.sort((a, b) => a.time!.localeCompare(b.time!) || byTitle(a, b));
   allDay.sort(byTitle);
   done.sort((a, b) => (b.task.completed ?? '').localeCompare(a.task.completed ?? '')); // latest first
   return { timed, allDay, done };
 }
 
-function byTitle(a: AgendaItem, b: AgendaItem): number {
-  return a.task.title.localeCompare(b.task.title, 'zh');
-}
-
 // Which grid day a task occupies, and whether it's a grayed terminal chip. Non-terminal → due day;
-// terminal → completed day; a task with no anchoring date never appears.
+// terminal → completed day. Fallback (chosen behavior): a terminal task *missing* completed (legacy
+// rows / external writes) still lands on its due day and is NOT grayed — old data keeps its cell in
+// the view rather than vanishing. Only a task with no anchoring date at all is dropped.
 function landingDay(task: Task): { day: string; terminal: boolean } | null {
-  if (isTerminal(task)) return task.completed ? { day: task.completed.slice(0, 10), terminal: true } : null;
+  if (isTerminal(task) && task.completed) return { day: task.completed.slice(0, 10), terminal: true };
   return task.due ? { day: task.due.slice(0, 10), terminal: false } : null;
 }
 
 // FR-036 月网格分桶: Monday-start, 5/6 rows (whole weeks covering the month + leading/trailing fill).
 // `view` selects the visible month (any date within it). Chips are bucketed onto their landing day
 // and only rendered when that day is inside the grid range.
-export function monthGrid(view: Date, items: readonly DatedTask[], now: Date): CalCell[] {
+export function monthGrid(view: Date, items: readonly DatedTask[], now: Date, locale = 'zh-CN'): CalCell[] {
   const y = view.getFullYear();
   const m = view.getMonth();
   const firstOffset = (new Date(y, m, 1).getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
@@ -136,15 +138,15 @@ export function monthGrid(view: Date, items: readonly DatedTask[], now: Date): C
   for (let i = 0; i < cellCount; i++) {
     const date = new Date(y, m, 1 - firstOffset + i);
     const key = dayKey(date);
-    const chips = (byDay.get(key) ?? []).slice().sort(chipSort);
+    const chips = (byDay.get(key) ?? []).slice().sort((a, b) => chipSort(a, b, locale));
     cells.push({ date, key, inMonth: date.getMonth() === m, isToday: key === todayKey, chips });
   }
   return cells;
 }
 
-// Same-day order: timed first (by time), then all-day, then title.
-function chipSort(a: CalChip, b: CalChip): number {
+// Same-day order: timed first (by time), then all-day, then title (collated by the active locale).
+function chipSort(a: CalChip, b: CalChip, locale: string): number {
   const ta = a.time ?? '99:99';
   const tb = b.time ?? '99:99';
-  return ta.localeCompare(tb) || a.task.title.localeCompare(b.task.title, 'zh');
+  return ta.localeCompare(tb) || a.task.title.localeCompare(b.task.title, locale);
 }

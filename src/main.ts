@@ -100,11 +100,18 @@ export default class TaskVaultPlugin extends Plugin {
     // FR-036 日程面板 (右侧栏) + 日历月视图 (中间区). Agenda's 完整日历 button opens the calendar.
     this.registerView(
       VIEW_TYPE_TASK_VAULT_AGENDA,
-      (leaf) => new AgendaVaultView(leaf, this.store, () => void this.openCalendar(), getT),
+      (leaf) =>
+        new AgendaVaultView(leaf, this.store, () => void this.openCalendar(), getT, () => new Date(),
+          () => this.lang, () => void this.activateView(), () => void this.activateProjectsView(),
+        ),
     );
     this.registerView(
       VIEW_TYPE_TASK_VAULT_CALENDAR,
-      (leaf) => new CalendarVaultView(leaf, this.store, getT),
+      (leaf) =>
+        new CalendarVaultView(leaf, this.store, getT, () => new Date(), () => this.lang,
+          () => void this.activateView(), () => void this.activateProjectsView(),
+          () => void this.activateAgendaView(),
+        ),
     );
 
     for (const ref of wireVaultEvents(this.app, this.store)) this.registerEvent(ref);

@@ -7,7 +7,8 @@
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import { todayAgenda, type AgendaItem, type TodayAgenda } from '../model/agendaGroup';
 import type { TaskStore } from '../store/taskStore';
-import { createT, type T } from '../i18n';
+import { createT, type ResolvedLang, type T } from '../i18n';
+import { renderViewSwitch } from './viewSwitch';
 
 export const VIEW_TYPE_TASK_VAULT_AGENDA = 'task-vault-agenda';
 
@@ -26,6 +27,9 @@ export class AgendaVaultView extends ItemView {
     private openCalendar: OpenCalendar,
     private getT: () => T = () => DEFAULT_T,
     private now: () => Date = () => new Date(),
+    private getLang: () => ResolvedLang = () => 'zh-CN',
+    private onOpenTasks?: () => void,
+    private onOpenProjects?: () => void,
   ) {
     super(leaf);
   }
@@ -57,13 +61,22 @@ export class AgendaVaultView extends ItemView {
     root.empty();
     root.addClass('tv-agenda');
 
+    // Cross-view switch bar (任务/项目 siblings) — mirrors H7's cockpit/projects links so the agenda
+    // is no longer a one-way dead-end. Only renders links whose handler is wired.
+    if (this.onOpenTasks || this.onOpenProjects) {
+      renderViewSwitch(root.createDiv({ cls: 'tv-cockpit-header' }), t, {
+        openTasks: this.onOpenTasks,
+        openProjects: this.onOpenProjects,
+      });
+    }
+
     const header = root.createDiv({ cls: 'tv-agenda-header' });
     header.createSpan({ cls: 'tv-agenda-title', text: t('agenda.title') });
     const calBtn = header.createEl('button', { cls: 'tv-cal-open', text: t('agenda.fullCalendar') });
     calBtn.addEventListener('click', () => this.openCalendar());
 
     const items = this.store.allEntries().map((e) => ({ task: e.task, path: e.path }));
-    const agenda = todayAgenda(items, this.now());
+    const agenda = todayAgenda(items, this.now(), this.getLang());
 
     if (agenda.timed.length === 0 && agenda.allDay.length === 0 && agenda.done.length === 0) {
       root.createDiv({ cls: 'tv-empty', text: t('agenda.empty') });
@@ -81,11 +94,14 @@ export class AgendaVaultView extends ItemView {
   }
 
   private renderItem(timeline: HTMLElement, item: AgendaItem, t: T): void {
-    const row = timeline.createDiv({ cls: `tv-tl-row tv-status-${item.task.status}` });
+    // Status class comes from the store's effective status (blocked derivation is the store's job,
+    // FR-031 同源 with the cockpit); the pure grouping fn keeps the raw status untouched.
+    const cls = this.store.effectiveStatus(item.task.id) ?? item.task.status;
+    const row = timeline.createDiv({ cls: `tv-tl-row tv-status-${cls}` });
     row.toggleClass('tv-overdue', item.overdue);
     row.createSpan({ cls: 'tv-tl-time', text: item.time ?? t('agenda.allDay') });
     row.createSpan({ cls: 'tv-tl-title', text: item.task.title });
-    row.addEventListener('click', () => void this.app.workspace.openLinkText(item.path, '', false));
+    row.addEventListener('click', () => void this.app.workspace.openLinkText(item.path, '', false).catch(() => {}));
   }
 
   private renderDoneGroup(root: HTMLElement, agenda: TodayAgenda, t: T): void {
@@ -104,7 +120,7 @@ export class AgendaVaultView extends ItemView {
       const row = body.createDiv({ cls: `tv-tl-row tv-tl-done tv-status-${item.task.status}` });
       row.createSpan({ cls: 'tv-tl-time', text: (item.task.completed ?? '').slice(11, 16) || '—' });
       row.createSpan({ cls: 'tv-tl-title', text: item.task.title });
-      row.addEventListener('click', () => void this.app.workspace.openLinkText(item.path, '', false));
+      row.addEventListener('click', () => void this.app.workspace.openLinkText(item.path, '', false).catch(() => {}));
     }
   }
 }

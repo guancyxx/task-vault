@@ -25,6 +25,7 @@ export const en = {
   'status.cancelled': 'Cancelled',
 
   // Sidebar cockpit chrome.
+  'sidebar.tasks': '📋 Tasks',
   'sidebar.projects': '📁 Projects',
   'sidebar.empty': '—',
   'sidebar.uncategorized': 'Uncategorized',
