@@ -17,6 +17,9 @@ declare module 'obsidian' {
     setViewState(state: unknown): Promise<void>;
   }
 
+  // Result bag Obsidian passes to ItemView.setState (opaque here — only forwarded to super).
+  export interface ViewStateResult {}
+
   export abstract class ItemView extends Component {
     app: App;
     containerEl: HTMLElement;
@@ -27,6 +30,8 @@ declare module 'obsidian' {
     getIcon(): string;
     protected onOpen(): Promise<void>;
     protected onClose(): Promise<void>;
+    getState(): Record<string, unknown>;
+    setState(state: unknown, result: ViewStateResult): Promise<void>;
   }
 
   export interface Command {
@@ -50,6 +55,7 @@ declare module 'obsidian' {
   export interface Workspace {
     getLeavesOfType(type: string): WorkspaceLeaf[];
     getRightLeaf(split: boolean): WorkspaceLeaf | null;
+    getLeaf(newLeaf?: boolean): WorkspaceLeaf;
     revealLeaf(leaf: WorkspaceLeaf): void;
     onLayoutReady(cb: () => void): void;
     openLinkText(linktext: string, sourcePath: string, newLeaf?: boolean): Promise<void>;

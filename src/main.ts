@@ -9,9 +9,11 @@ import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
 import { registerCommands } from './view/commands';
 import { openLegend } from './view/legend';
+import { ProjectDetailView, VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL } from './view/projectDetailView';
+import { ProjectVaultView, VIEW_TYPE_TASK_VAULT_PROJECTS } from './view/projectsView';
 import { TaskVaultView, VIEW_TYPE_TASK_VAULT } from './view/sidebarView';
 
-export { VIEW_TYPE_TASK_VAULT };
+export { VIEW_TYPE_TASK_VAULT, VIEW_TYPE_TASK_VAULT_PROJECTS, VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL };
 
 // `.taskvault/` sits at the vault root; shared with the Python syncer (contract §1).
 function taskvaultDir(plugin: Plugin): string {
@@ -54,9 +56,24 @@ export default class TaskVaultPlugin extends Plugin {
       if (capture) await source.createTaskFile(capture, now);
     };
 
-        this.registerView(
+    this.registerView(
       VIEW_TYPE_TASK_VAULT,
-      (leaf) => new TaskVaultView(leaf, this.store, onCapture, this.actions),
+      (leaf) =>
+        new TaskVaultView(leaf, this.store, onCapture, this.actions, () => new Date(), () =>
+          void this.activateProjectsView(),
+        ),
+    );
+
+    // FR-035 项目面板 + 项目详情. The panel opens a detail leaf in the center; detail's 返回
+    // button re-reveals the panel.
+    this.registerView(
+      VIEW_TYPE_TASK_VAULT_PROJECTS,
+      (leaf) => new ProjectVaultView(leaf, this.store, (project) => this.openProjectDetail(project)),
+    );
+    this.registerView(
+      VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL,
+      (leaf) =>
+        new ProjectDetailView(leaf, this.store, this.actions, () => void this.activateProjectsView()),
     );
 
     for (const ref of wireVaultEvents(this.app, this.store)) this.registerEvent(ref);
@@ -68,6 +85,7 @@ export default class TaskVaultPlugin extends Plugin {
     // 'vault' lucide icon — matches the Check Seal logo (vault door + check).
     this.addRibbonIcon('vault', 'Open Task Vault', () => void this.activateView());
     this.addCommand({ id: 'open', name: 'Open', callback: () => void this.activateView() });
+    this.addCommand({ id: 'open-projects', name: '项目面板', callback: () => void this.activateProjectsView() });
     this.addCommand({ id: 'legend', name: '图例', callback: () => openLegend(this.app) });
     // FR-032 / SC-013: the six task commands (记一条 / 快捷标注 决策·评论·卡点 / 设置状态 / 委派),
     // each gated on the active file being an indexed task, with default Mod+Shift L/D/C/K/S/A hotkeys.
@@ -86,5 +104,27 @@ export default class TaskVaultPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT, active: true });
       workspace.revealLeaf(leaf);
     }
+  }
+
+  // Projects panel lives beside the cockpit in the right sidebar.
+  private async activateProjectsView(): Promise<void> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT_PROJECTS);
+    if (existing.length > 0) {
+      workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf: WorkspaceLeaf | null = workspace.getRightLeaf(false);
+    if (leaf) {
+      await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT_PROJECTS, active: true });
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  // Detail opens in a fresh center leaf (FR-035); project passed through view state.
+  private async openProjectDetail(project: string): Promise<void> {
+    const leaf = this.app.workspace.getLeaf(true);
+    await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL, active: true, state: { project } });
+    this.app.workspace.revealLeaf(leaf);
   }
 }
