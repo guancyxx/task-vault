@@ -91,12 +91,9 @@ protocol covering:
 - status transitions & the review gate (agents deliver to `review`, never `done`,
   unless carrying a verifiable in-chat approval citation)
 - delegation protocol (dispatch hooks, acceptance entries, backstop)
-- the optional built-in localhost API (planned for v0.3 — `POST /tasks`, `GET/PATCH
-  /tasks/:id`, `POST /tasks/:id/log`) — routes writes through the state machine and gate
-
-The API is not in the current release; until it ships, agents write task files directly
-per the skill protocol. (It has shipped in the next release on the `main` branch, ahead of
-the tagged v0.3.)
+- the built-in localhost API (`POST /tasks`, `GET/PATCH /tasks/:id`,
+  `POST /tasks/:id/log`) — routes writes through the state machine and gate; off by
+  default, enabled per-agent Bearer tokens in Settings → Task Vault
 
 ## Apple Reminders sync
 
@@ -152,6 +149,29 @@ flag:
 
 Task Vault includes no telemetry and makes no network requests, apart from any network
 behavior performed by hook commands that the user explicitly configures.
+
+## What's new in 0.3.0
+
+- **Projects panel** — all-project stats cards (open / overdue / done-this-week /
+  running agents); click through to a status-grouped project detail view.
+- **Agenda & calendar** — today's schedule timeline in the sidebar; a full month-grid
+  calendar view (status-colored chips, overdue highlighting, prev/next navigation).
+  Replaces daily-note-based calendar plugins for task scheduling.
+- **Built-in local HTTP API** — `POST /tasks`, `GET/PATCH /tasks/:id`,
+  `POST /tasks/:id/log` on `127.0.0.1`, per-agent Bearer tokens, every write routed
+  through the state machine and the review gate. Off by default.
+- **Six commands with default hotkeys** — log/annotate (decision/comment/blocker),
+  set status, delegate: `Cmd/Ctrl+Shift+L/D/C/K/S/A` (rebindable).
+- **Status color rails** — the left rail now encodes status with a dedicated color per
+  state (cancelled = diagonal stripe); row tooltips name the state.
+- **Bilingual README & UI localization** — full English/中文 README; UI strings in
+  English or 简体中文 following your Obsidian language (Settings → Task Vault to
+  override).
+- **Agent skill shipped in-repo** — `skills/task-vault-agent/SKILL.md` is the complete
+  agent protocol, now including the local API contract.
+- **Release hygiene** — a dozen static-analysis warnings from the community directory
+  scorecard fixed (unnecessary assertions, control chars, declarative settings API,
+  CONTRIBUTING guide added); release assets are attested.
 
 ## Install
 
@@ -277,11 +297,9 @@ Task Vault 以 agent 优先的方式设计：任何 CLI agent（Hermes、Claude 
 - 状态迁移与复核门禁（agent 只能交付到 `review`，绝不直接置为 `done`；唯一例外是
   携带可验证的当前会话用户批准引用）
 - 委派协议（派发 hook、接单记录、兜底派发）
-- 可选的内置 localhost API（计划在 v0.3 提供：`POST /tasks`、`GET/PATCH
-  /tasks/:id`、`POST /tasks/:id/log`），所有写入都会经过状态机与门禁
-
-当前版本尚未提供该 API；在它发布前，agent 按 skill 协议直接写任务文件。（该 API 已在
-`main` 分支的下一个版本中落地，先于打标的 v0.3。）
+- 内置 localhost API（`POST /tasks`、`GET/PATCH /tasks/:id`、`POST /tasks/:id/log`），
+  所有写入都会经过状态机与门禁；默认关闭，在 设置 → Task Vault 中启用并签发各 agent
+  的 Bearer token
 
 ## Apple Reminders sync · Apple 提醒事项同步
 
@@ -328,6 +346,25 @@ Task Vault 使用了几项可能被社区市场安全扫描标记的桌面端能
 
 Task Vault 不含遥测，也不会发起网络请求；唯一例外是用户明确配置的 hook 命令自身
 可能产生的网络行为。
+
+## 0.3.0 更新内容
+
+- **项目面板** —— 全库项目统计卡片（开放 / 过期 / 本周完成 / 在跑 agent），点开进入
+  按状态分组的项目详情视图。
+- **日程面板与日历** —— 侧边栏今日日程时间轴；完整月历视图（状态色 chip、过期高亮、
+  前后月导航）。以任务为数据源，取代基于日记的日历插件。
+- **内置本地 HTTP API** —— `127.0.0.1` 上的 `POST /tasks`、`GET/PATCH /tasks/:id`、
+  `POST /tasks/:id/log`，按 agent 签发 Bearer token，所有写入经过状态机与复核门禁。
+  默认关闭。
+- **六命令默认热键** —— 记录 / 快捷标注（决策/评论/卡点）、设置状态、委派：
+  `Cmd/Ctrl+Shift+L/D/C/K/S/A`（可改绑）。
+- **状态色条** —— 左侧色条按状态独立配色（cancelled 为斜纹）；行悬浮提示状态名。
+- **双语 README 与界面本地化** —— README 中英双语；界面文案跟随 Obsidian 语言
+  （可在 设置 → Task Vault 覆盖）。
+- **仓库内 agent skill** —— `skills/task-vault-agent/SKILL.md` 完整 agent 协议，
+  已含本地 API 契约。
+- **发布卫生** —— 修复社区目录记分卡的十余条静态分析告警（冗余断言、控制字符、
+  声明式设置 API、补 CONTRIBUTING）；发布资产已签名（attestations）。
 
 ## Install · 安装
 
