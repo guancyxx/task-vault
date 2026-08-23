@@ -22,7 +22,8 @@ export class LegendModal extends Modal {
     for (const status of STATUSES) {
       const meta = STATUS_META[status];
       const row = contentEl.createDiv({ cls: 'tv-legend-row' });
-      // Real 4px color rail sample — same element + tv-status class the rows render (FR-031).
+      // Real 4px color rail sample — same painter + status class the rows render (FR-031):
+      // two different elements (legend row vs task row) sharing one rail painter in CSS.
       row.createSpan({ cls: ['tv-legend-rail', `tv-status-${meta.cls}`] });
       row.createSpan({ cls: 'tv-glyph', text: meta.glyph });
       row.createSpan({ cls: 'tv-legend-label', text: `${STATUS_LABEL[status]}${LEGEND_HINT[status] ?? ''}` });

@@ -106,8 +106,11 @@
 .tv-status-waiting { --tv-rail: var(--color-yellow); }
 .tv-status-blocked { --tv-rail: var(--color-red); }
 .tv-status-done    { --tv-rail: var(--color-green); }
-/* cancelled: grey diagonal stripe rail — distinct from flat grey inbox */
-.tv-status-cancelled::before {
+/* cancelled: grey diagonal stripe rail — distinct from flat grey inbox.
+   Scoped to the two real rail hosts (row, legend sample) so other tv-status-*
+   consumers (e.g. .tv-panel cards) never grow a stripe. */
+.tv-row.tv-status-cancelled::before,
+.tv-legend-rail.tv-status-cancelled::before {
   background: repeating-linear-gradient(
     45deg,
     var(--text-faint) 0 2px,
