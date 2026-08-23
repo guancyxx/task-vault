@@ -173,6 +173,11 @@ export class TaskStore {
     return this.entryById(id) !== undefined;
   }
 
+  // UUID lookup for the local API (byPath is the path index; this is the id index).
+  byId(id: string): Entry | undefined {
+    return this.entryById(id);
+  }
+
   errors(): StoreError[] {
     return [...this.errorsByPath.entries()].map(([path, error]) => ({ path, error }));
   }

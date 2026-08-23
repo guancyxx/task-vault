@@ -6,7 +6,7 @@ import { TFile, type App, type EventRef, type TAbstractFile } from 'obsidian';
 import type { EntryInput } from '../log/executionLog';
 import { recordEntry } from '../log/executionLog';
 import { parseTaskFile, serializeTaskFile, upsertSection } from '../util/frontmatter';
-import type { Status } from '../model/types';
+import type { Source, Status } from '../model/types';
 import { captureToTask, slugify, type Capture } from '../view/captureParse';
 import { isLibraryPath, taskDir, taskPath as computeTaskPath } from './taskPaths';
 import type { SectionWriter } from './taskActions';
@@ -80,8 +80,9 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Revie
   // Create a task file from a parsed capture (FR-012). The 'create' vault event then flows back
   // through wireVaultEvents → store.upsert, so the row appears without an explicit refresh.
   // Placement: `03 Tasks/<project>/<YYYY-MM-DD>/<slug>.md` (taskPaths.ts scheme).
-  async createTaskFile(capture: Capture, now: Date): Promise<string> {
-    const task = captureToTask(capture, { id: crypto.randomUUID(), now });
+  // `source` records the origin actor (FR-034: an API create stamps the token's agent, not 'user').
+  async createTaskFile(capture: Capture, now: Date, source: Source = 'user'): Promise<string> {
+    const task = captureToTask(capture, { id: crypto.randomUUID(), now, source });
     const base = slugify(task.title);
     let path = computeTaskPath(task, `${base}.md`);
     for (let n = 2; this.app.vault.getAbstractFileByPath(path) !== null; n++) {
