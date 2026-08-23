@@ -9,27 +9,34 @@ import { ApiLifecycle } from '../src/api/lifecycle';
 //   2. a reconcile superseded by a newer one skips its start() entirely.
 // These fakes make both observable via deferred promises.
 
-interface FakeServer {
-  start(): void;
-  close(): Promise<void>;
+// Cast seam: ApiLifecycle only calls start()/close() on the server it holds; the test
+// substitutes a controllable fake. Structural mismatch with the full ApiServer type is
+// irrelevant to the ordering contract under test.
+function fakeServerFactory(
+  port: () => number,
+  log: string[],
+): () => import('../src/api/server').ApiServer {
+  return () => {
+    // Pin the port at construction time — a real ApiServer binds its port when made,
+    // so a later port change must not relabel an already-bound server's log lines.
+    const bound = port();
+    return {
+      start() {
+        log.push(`start:${bound}`);
+      },
+      close() {
+        log.push(`close-begin:${bound}`);
+        hooks.onCloseStart?.();
+        // Delay resolution until the test allows it — holds the queue mid-operation.
+        const p = deferred.pop();
+        if (p) return p.promise;
+        return Promise.resolve();
+      },
+    } as unknown as import('../src/api/server').ApiServer;
+  };
 }
 
-function makeFake(port: number, log: string[], hooks: { onCloseStart?: (s: FakeServer) => void }) {
-  const s: FakeServer = {
-    start() {
-      log.push(`start:${port}`);
-    },
-    close() {
-      log.push(`close-begin:${port}`);
-      hooks.onCloseStart?.(s);
-      // Delay resolution until the test allows it — holds the queue mid-operation.
-      const p = deferred.pop();
-      if (p) return p.promise;
-      return Promise.resolve();
-    },
-  };
-  return s;
-}
+const hooks: { onCloseStart?: () => void } = {};
 
 const deferred: Array<{ promise: Promise<void>; resolve: () => void }> = [];
 
@@ -48,7 +55,7 @@ describe('ApiLifecycle ordering contract', () => {
     const log: string[] = [];
     let currentPort = 1;
     const life = new ApiLifecycle(
-      () => makeFake(currentPort, log, {}),
+      fakeServerFactory(() => currentPort, log),
       () => true,
     );
 
@@ -84,7 +91,7 @@ describe('ApiLifecycle ordering contract', () => {
     const log: string[] = [];
     let enabled = true;
     const life = new ApiLifecycle(
-      () => makeFake(1, log, {}),
+      fakeServerFactory(() => 1, log),
       () => enabled,
     );
 
@@ -106,7 +113,7 @@ describe('ApiLifecycle ordering contract', () => {
   it('close() cancels a pending start from a queued reconcile', async () => {
     const log: string[] = [];
     const life = new ApiLifecycle(
-      () => makeFake(1, log, {}),
+      fakeServerFactory(() => 1, log),
       () => true,
     );
 
