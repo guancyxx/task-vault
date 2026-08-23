@@ -2,9 +2,20 @@
 // Buckets, countdown/overdue labels, and reminder-moment derivation from status+start+due.
 // DDL never mutates status (FR-008) — these functions only *derive* display state.
 
+import { createT, type T } from '../i18n';
 import { TERMINAL_STATUSES, type Task } from '../model/types';
 
 export type Bucket = 'review' | 'inbox' | 'today' | 'overdue' | 'week' | 'done';
+
+// Structured countdown badge (FR-008): `overdue` drives the view's red/amber styling directly, so
+// callers never string-match the label (which was language-fragile). `text` is already localized.
+export interface CountdownBadge {
+  text: string;
+  overdue: boolean;
+}
+
+// Default (zh) translator so pure callers/tests keep Chinese labels without wiring a translator.
+const ZH: T = createT('zh-CN');
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -107,30 +118,36 @@ export function completedThisWeek(task: Task, now: Date): boolean {
   return at >= start && at < end;
 }
 
-// FR-008: timed countdown `剩 XhYm` and overdue `超期 Nd|Nh|Nm`. All-day non-overdue and terminal
-// carry no badge (null). Amber/red styling is a view concern, not part of the label.
-export function countdownLabel(task: Task, now: Date): string | null {
+// FR-008: timed countdown (`剩 XhYm` / `XhYm left`) and overdue (`超期 Nd` / `Nd overdue`). All-day
+// non-overdue and terminal carry no badge (null). `t` defaults to zh so pure callers/tests keep
+// Chinese; the view passes its active translator. Amber/red styling reads `overdue`, not the text.
+export function countdownLabel(task: Task, now: Date, t: T = ZH): CountdownBadge | null {
   if (isTerminal(task)) return null;
   const due = task.due;
   if (!due) return null;
 
   if (isDateOnly(due)) {
     const days = diffDays(dayStr(now), due.slice(0, 10));
-    return days > 0 ? `超期 ${days}d` : null;
+    return days > 0 ? overdueBadge(t, `${days}d`) : null;
   }
 
   const ms = parseLocal(due).getTime() - now.getTime();
-  if (ms < 0) return formatOverdue(-ms);
+  if (ms < 0) return overdueBadge(t, overdueDuration(-ms));
   if (ms >= DAY) return null; // countdown badge only within 24h
   const h = Math.floor(ms / HOUR);
   const m = Math.floor((ms % HOUR) / MINUTE);
-  return h > 0 ? `剩 ${h}h${m}m` : `剩 ${m}m`;
+  const time = h > 0 ? `${h}h${m}m` : `${m}m`;
+  return { text: t('badge.countdown', { time }), overdue: false };
 }
 
-function formatOverdue(ms: number): string {
-  if (ms >= DAY) return `超期 ${Math.floor(ms / DAY)}d`;
-  if (ms >= HOUR) return `超期 ${Math.floor(ms / HOUR)}h`;
-  return `超期 ${Math.floor(ms / MINUTE)}m`;
+function overdueBadge(t: T, time: string): CountdownBadge {
+  return { text: t('badge.overdue', { time }), overdue: true };
+}
+
+function overdueDuration(ms: number): string {
+  if (ms >= DAY) return `${Math.floor(ms / DAY)}d`;
+  if (ms >= HOUR) return `${Math.floor(ms / HOUR)}h`;
+  return `${Math.floor(ms / MINUTE)}m`;
 }
 
 function offsetMs(remind: string): number {

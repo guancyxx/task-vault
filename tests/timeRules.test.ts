@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Bucket } from '../src/time/timeRules';
+import type { Bucket, CountdownBadge } from '../src/time/timeRules';
 import { bucketOf, countdownLabel, remindMoment } from '../src/time/timeRules';
+import { createT } from '../src/i18n';
 import type { Status, Task } from '../src/model/types';
 
 const NOW = new Date(2026, 7, 19, 14, 32); // local 2026-08-19 14:32 (Wed)
@@ -43,17 +44,18 @@ describe('bucketOf (FR-007)', () => {
 
 // ---------- countdownLabel (FR-008, SC-007) ----------
 
-const COUNTDOWNS: Array<[string, Task, string | null]> = [
-  ['3h12m ahead', task({ due: '2026-08-19T17:44' }), '剩 3h12m'],
-  ['exactly 1h', task({ due: '2026-08-19T15:32' }), '剩 1h0m'],
-  ['under 1h drops hours', task({ due: '2026-08-19T15:02' }), '剩 30m'],
-  ['overdue minutes', task({ due: '2026-08-19T14:00' }), '超期 32m'],
-  ['overdue hours', task({ due: '2026-08-19T11:32' }), '超期 3h'],
-  ['overdue 1 day (datetime)', task({ due: '2026-08-18T14:32' }), '超期 1d'],
-  ['overdue 2 days (datetime)', task({ due: '2026-08-17T14:32' }), '超期 2d'],
+// Default (zh) returns a structured badge — `text` localized, `overdue` drives view styling.
+const COUNTDOWNS: Array<[string, Task, CountdownBadge | null]> = [
+  ['3h12m ahead', task({ due: '2026-08-19T17:44' }), { text: '剩 3h12m', overdue: false }],
+  ['exactly 1h', task({ due: '2026-08-19T15:32' }), { text: '剩 1h0m', overdue: false }],
+  ['under 1h drops hours', task({ due: '2026-08-19T15:02' }), { text: '剩 30m', overdue: false }],
+  ['overdue minutes', task({ due: '2026-08-19T14:00' }), { text: '超期 32m', overdue: true }],
+  ['overdue hours', task({ due: '2026-08-19T11:32' }), { text: '超期 3h', overdue: true }],
+  ['overdue 1 day (datetime)', task({ due: '2026-08-18T14:32' }), { text: '超期 1d', overdue: true }],
+  ['overdue 2 days (datetime)', task({ due: '2026-08-17T14:32' }), { text: '超期 2d', overdue: true }],
   ['>24h ahead → no badge', task({ due: '2026-08-21T09:00' }), null],
-  ['date-only overdue 1d', task({ due: '2026-08-18' }), '超期 1d'],
-  ['date-only overdue 2d', task({ due: '2026-08-17' }), '超期 2d'],
+  ['date-only overdue 1d', task({ due: '2026-08-18' }), { text: '超期 1d', overdue: true }],
+  ['date-only overdue 2d', task({ due: '2026-08-17' }), { text: '超期 2d', overdue: true }],
   ['date-only today → no badge', task({ due: '2026-08-19' }), null],
   ['date-only tomorrow → no badge', task({ due: '2026-08-20' }), null],
   ['done → no badge', task({ status: 'done', due: '2026-08-18T14:32' }), null],
@@ -62,8 +64,22 @@ const COUNTDOWNS: Array<[string, Task, string | null]> = [
 
 describe('countdownLabel (FR-008, SC-007)', () => {
   for (const [name, t, expected] of COUNTDOWNS) {
-    it(name, () => expect(countdownLabel(t, NOW)).toBe(expected));
+    it(name, () => expect(countdownLabel(t, NOW)).toEqual(expected));
   }
+
+  // FR-039: `text` follows the injected translator; `overdue` is language-independent.
+  it('localizes the badge text via the injected translator (en)', () => {
+    const en = createT('en');
+    expect(countdownLabel(task({ due: '2026-08-19T17:44' }), NOW, en)).toEqual({
+      text: '3h12m left',
+      overdue: false,
+    });
+    expect(countdownLabel(task({ due: '2026-08-17T14:32' }), NOW, en)).toEqual({
+      text: '2d overdue',
+      overdue: true,
+    });
+    expect(countdownLabel(task({ due: '2026-08-18' }), NOW, en)).toEqual({ text: '1d overdue', overdue: true });
+  });
 });
 
 // ---------- remindMoment (FR-006) ----------

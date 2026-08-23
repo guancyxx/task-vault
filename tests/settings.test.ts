@@ -37,6 +37,24 @@ describe('normalizeConfig', () => {
     const cfg = normalizeConfig({ default_remind: { allday: '08:30' } } as Partial<Config>);
     expect(cfg.default_remind).toEqual({ allday: '08:30', timed: 'due' });
   });
+
+  test('valid ui_language values pass through', () => {
+    expect(normalizeConfig({ ui_language: 'en' } as Partial<Config>).ui_language).toBe('en');
+    expect(normalizeConfig({ ui_language: 'zh-CN' } as Partial<Config>).ui_language).toBe('zh-CN');
+    expect(normalizeConfig({ ui_language: 'auto' } as Partial<Config>).ui_language).toBe('auto');
+  });
+
+  test('invalid ui_language falls back to auto', () => {
+    expect(normalizeConfig({ ui_language: 'fr' } as unknown).ui_language).toBe('auto');
+    expect(normalizeConfig({ ui_language: 123 } as unknown).ui_language).toBe('auto');
+    expect(normalizeConfig({ ui_language: '' } as unknown).ui_language).toBe('auto');
+  });
+
+  test('legacy config missing ui_language defaults to auto', () => {
+    // A pre-FR-039 config file has no ui_language key at all.
+    const legacy = { version: 1, terminal_hook: 'x', dispatch_hook: '', backstop_minutes: 30 };
+    expect(normalizeConfig(legacy).ui_language).toBe('auto');
+  });
 });
 
 describe('ConfigService', () => {

@@ -32,6 +32,18 @@ export const en = {
   'capture.emptyTitle': 'Task title is empty',
   'capture.failed': 'Capture failed: {err}',
 
+  // Time badges (countdown / overdue). {time} is the language-neutral duration (e.g. 3h12m, 2d).
+  'badge.countdown': '{time} left',
+  'badge.overdue': '{time} overdue',
+
+  // Task-action notices (blocked completion, illegal transition, hook failures).
+  'action.blocked': "Blocked — can't complete",
+  'action.illegalTransition': 'Illegal transition: {from} → {to}',
+  'action.dispatchHookFailed': 'Dispatch hook failed: {err}',
+  'action.summaryHookDisabled': 'Terminal hook not configured',
+  'action.summaryHookFailed': 'Summary hook failed: {err}',
+  'action.terminalHookFailed': 'Terminal hook failed: {err}',
+
   // Task row.
   'row.check': 'Complete',
   'row.waiting': '⏳ Waiting',
@@ -122,6 +134,26 @@ export const en = {
   'projects.overdue': 'Overdue',
   'projects.weekDone': 'Done this week',
   'projects.running': 'Running',
+
+  // Settings tab (labels rendered per active language, FR-039).
+  'settings.interfaceHeading': 'Interface',
+  'settings.language': 'Language',
+  'settings.languageDesc': 'Display language for the plugin UI. "Follow Obsidian" picks by Obsidian\'s UI language.',
+  'settings.langAuto': 'Follow Obsidian',
+  'settings.hooksHeading': 'Hooks',
+  'settings.terminalHook': 'Terminal hook',
+  'settings.terminalHookDesc':
+    'Runs when a task enters done/cancelled. Placeholders {TASK_PATH} {TASK_ID} {TASK_STATUS} {TASK_TITLE} {TASK_ASSIGNEE}; TV_* env vars injected. Empty = disabled.',
+  'settings.terminalHookPlaceholder': 'e.g. ~/bin/on-task-done "{TASK_PATH}"',
+  'settings.dispatchHook': 'Dispatch hook',
+  'settings.dispatchHookDesc':
+    'Runs when delegating a task to an agent. Same placeholders plus {TASK_INSTRUCTION}. Empty = disabled.',
+  'settings.dispatchHookPlaceholder': 'e.g. hermes dispatch --task "{TASK_ID}" --to "{TASK_ASSIGNEE}"',
+  'settings.timeHeading': 'Time defaults',
+  'settings.alldayRemind': 'All-day default remind',
+  'settings.alldayRemindDesc': 'Reminder time on the due date for tasks without a specific time (HH:MM).',
+  'settings.backstop': 'Backstop dispatch (min)',
+  'settings.backstopDesc': 'Minutes after delegation with no pickup before the backstop cron re-dispatches.',
 
   // Project detail view.
   'projectDetail.title': 'Project · {project}',

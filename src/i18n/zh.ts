@@ -28,6 +28,16 @@ export const zh: Record<keyof typeof en, string> = {
   'capture.emptyTitle': '任务标题为空',
   'capture.failed': '捕获失败：{err}',
 
+  'badge.countdown': '剩 {time}',
+  'badge.overdue': '超期 {time}',
+
+  'action.blocked': '被阻塞，无法完成',
+  'action.illegalTransition': '非法状态转移：{from} → {to}',
+  'action.dispatchHookFailed': '派发 hook 失败：{err}',
+  'action.summaryHookDisabled': '未配置终态 hook',
+  'action.summaryHookFailed': '总结 hook 失败：{err}',
+  'action.terminalHookFailed': '终态 hook 失败：{err}',
+
   'row.check': '完成',
   'row.waiting': '⏳ 等待中',
   'row.blocked': '⛔ 被阻塞',
@@ -109,6 +119,24 @@ export const zh: Record<keyof typeof en, string> = {
   'projects.overdue': '过期',
   'projects.weekDone': '本周完成',
   'projects.running': '在跑',
+
+  'settings.interfaceHeading': '界面',
+  'settings.language': '界面语言',
+  'settings.languageDesc': '插件界面文案的显示语言。「跟随 Obsidian」按 Obsidian 界面语言自动选择。',
+  'settings.langAuto': '跟随 Obsidian',
+  'settings.hooksHeading': 'Hook 命令',
+  'settings.terminalHook': '终态 hook',
+  'settings.terminalHookDesc':
+    '任务进入 done/cancelled 时执行。占位符 {TASK_PATH} {TASK_ID} {TASK_STATUS} {TASK_TITLE} {TASK_ASSIGNEE}，同时注入 TV_* 环境变量。留空 = 禁用。',
+  'settings.terminalHookPlaceholder': '例如：~/bin/on-task-done "{TASK_PATH}"',
+  'settings.dispatchHook': '派发 hook',
+  'settings.dispatchHookDesc': '委派任务给 agent 时执行。占位符同上，额外提供 {TASK_INSTRUCTION}。留空 = 禁用。',
+  'settings.dispatchHookPlaceholder': '例如：hermes dispatch --task "{TASK_ID}" --to "{TASK_ASSIGNEE}"',
+  'settings.timeHeading': '时间默认值',
+  'settings.alldayRemind': '全天任务默认提醒时刻',
+  'settings.alldayRemindDesc': '无具体时刻的任务，到期日的提醒时间（HH:MM）。',
+  'settings.backstop': '兜底派发阈值（分钟）',
+  'settings.backstopDesc': '委派后经过此分钟数仍无接单记录，兜底 cron 补派。',
 
   'projectDetail.title': '项目 · {project}',
   'projectDetail.fallback': '项目详情',

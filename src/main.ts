@@ -32,6 +32,8 @@ export default class TaskVaultPlugin extends Plugin {
   private lang: ResolvedLang = 'zh-CN';
   private t: T = createT('zh-CN');
   private commands: Command[] = [];
+  // Ribbon icon element — kept so its tooltip (aria-label) can be relabeled on a language switch.
+  private ribbonEl: HTMLElement | null = null;
 
   // Obsidian's Plugin.onload is typed `void`; keep it synchronous and fire the async
   // bootstrap without returning a promise (Scorecard: no promise where void is expected).
@@ -57,7 +59,7 @@ export default class TaskVaultPlugin extends Plugin {
 
     const source = new VaultSource(this.app);
     this.store = new TaskStore(source, source, () => new Date(), source);
-    this.actions = new TaskActions(this.app, this.store, source, hooks);
+    this.actions = new TaskActions(this.app, this.store, source, hooks, 'user', () => new Date(), getT);
 
     const onCapture = async (text: string, now: Date): Promise<void> => {
       const capture = parseCapture(text, now);
@@ -89,9 +91,9 @@ export default class TaskVaultPlugin extends Plugin {
     // Build the index once the vault's file list is ready, then let events keep it live.
     this.app.workspace.onLayoutReady(() => void this.store.scan());
 
-    this.addSettingTab(new TaskVaultSettingTab(this.app, this, this.config, () => this.applyLanguage()));
+    this.addSettingTab(new TaskVaultSettingTab(this.app, this, this.config, getT, () => this.applyLanguage()));
     // 'vault' lucide icon — matches the Check Seal logo (vault door + check).
-    this.addRibbonIcon('vault', this.t('ribbon.open'), () => void this.activateView());
+    this.ribbonEl = this.addRibbonIcon('vault', this.t('ribbon.open'), () => void this.activateView());
     // The three chrome commands + the six task commands. All names resolve via `this.t`; on a
     // language switch, applyLanguage() rewrites every .name (the palette re-reads it on open).
     this.commands = [
@@ -137,6 +139,8 @@ export default class TaskVaultPlugin extends Plugin {
       const key = nameKeyById[cmd.id];
       if (key) cmd.name = this.t(key);
     }
+    // Obsidian drives the ribbon tooltip from aria-label — reset it so the hover text follows suit.
+    this.ribbonEl?.setAttribute('aria-label', this.t('ribbon.open'));
     this.store.notify();
   }
 

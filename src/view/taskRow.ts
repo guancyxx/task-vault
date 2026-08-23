@@ -216,11 +216,10 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
 
   // Row 3 (bottom, right-aligned): dates — due/countdown chip, start, sub-task progress.
   const dates = col.createDiv({ cls: 'tv-dates' });
-  const badge = countdownLabel(task, ctx.now);
+  const badge = countdownLabel(task, ctx.now, t);
   let chip: HTMLElement | null = null;
   if (badge) {
-    const overdue = badge.startsWith('超期');
-    chip = dates.createSpan({ cls: ['tv-badge', overdue ? 'tv-overdue' : 'tv-countdown'], text: badge });
+    chip = dates.createSpan({ cls: ['tv-badge', badge.overdue ? 'tv-overdue' : 'tv-countdown'], text: badge.text });
   } else if (task.due) {
     chip = dates.createSpan({ cls: ['tv-badge', 'tv-date'], text: dueChip(task.due) });
   }
