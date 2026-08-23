@@ -4,32 +4,34 @@
 // (YYYY-MM-DD for all-day, YYYY-MM-DDTHH:MM for timed) or null to clear.
 
 import { Modal, type App } from 'obsidian';
+import type { T } from '../i18n';
 
 export type RescheduleSubmit = (due: string | null) => void;
 
-export function openReschedule(app: App, currentDue: string | undefined, onSubmit: RescheduleSubmit): void {
-  new RescheduleModal(app, currentDue, onSubmit).open();
+export function openReschedule(app: App, currentDue: string | undefined, onSubmit: RescheduleSubmit, t: T): void {
+  new RescheduleModal(app, currentDue, onSubmit, t).open();
 }
 
 class RescheduleModal extends Modal {
   private allDay: boolean;
   private input!: HTMLInputElement;
 
-  constructor(app: App, private currentDue: string | undefined, private onSubmit: RescheduleSubmit) {
+  constructor(app: App, private currentDue: string | undefined, private onSubmit: RescheduleSubmit, private t: T) {
     super(app);
     this.allDay = currentDue ? !currentDue.includes('T') : true;
   }
 
   onOpen(): void {
     const { contentEl } = this;
+    const t = this.t;
     contentEl.empty();
     contentEl.addClass('tv-reschedule-modal');
-    this.setTitle('改期');
+    this.setTitle(t('reschedule.title'));
 
     const toggleRow = contentEl.createDiv({ cls: 'tv-reschedule' });
     const toggle = toggleRow.createEl('input', { attr: { type: 'checkbox' } });
     toggle.checked = this.allDay;
-    toggleRow.createEl('label', { text: '全天（仅日期）' });
+    toggleRow.createEl('label', { text: t('reschedule.allDay') });
     toggle.addEventListener('change', () => {
       this.allDay = toggle.checked;
       this.renderInput();
@@ -38,9 +40,9 @@ class RescheduleModal extends Modal {
     this.renderInput();
 
     const btns = contentEl.createDiv({ cls: 'tv-reschedule' });
-    const save = btns.createEl('button', { text: '保存' });
+    const save = btns.createEl('button', { text: t('reschedule.save') });
     save.addEventListener('click', () => this.submit());
-    const clear = btns.createEl('button', { text: '清除' });
+    const clear = btns.createEl('button', { text: t('reschedule.clear') });
     clear.addEventListener('click', () => {
       this.onSubmit(null);
       this.close();

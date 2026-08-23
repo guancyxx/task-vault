@@ -1,22 +1,34 @@
-// Obsidian settings UI over ConfigService (FR-022). Thin, manually verified; the config logic
-// and defaults live obsidian-free in config.ts.
+// Obsidian settings UI over ConfigService (FR-022, FR-039). Thin, manually verified; the config
+// logic and defaults live obsidian-free in config.ts. Every label routes through the active
+// translator, so the panel renders wholly in the current UI language and re-renders on a switch.
 
 import { PluginSettingTab, Setting, type App, type Plugin, type SettingDefinition } from 'obsidian';
 import type { ConfigService } from './config';
+import type { Lang, T } from './i18n';
 
 export class TaskVaultSettingTab extends PluginSettingTab {
-  constructor(app: App, plugin: Plugin, private config: ConfigService) {
+  // onLangChange fires after the UI-language dropdown writes config, so the plugin can re-render
+  // views + relabel commands without a reload (FR-039). getT returns the live translator.
+  constructor(
+    app: App,
+    plugin: Plugin,
+    private config: ConfigService,
+    private getT: () => T,
+    private onLangChange: () => void,
+  ) {
     super(app, plugin);
   }
 
   // Declarative settings API (Obsidian 1.13+): lets the in-app settings search index these
   // controls. Mirrors the names/descriptions rendered in display(); no runtime behavior change.
   getSettingDefinitions(): SettingDefinition[] {
+    const t = this.getT();
     return [
-      { name: '终态 hook (terminal)', description: '任务进入 done/cancelled 时执行的命令。' },
-      { name: '派发 hook (dispatch)', description: '委派任务给 agent 时执行的命令。' },
-      { name: '全天任务默认提醒时刻', description: '无具体时刻的任务，到期日的提醒时间（HH:MM）。' },
-      { name: '兜底派发阈值（分钟）', description: '委派后经过此分钟数仍无接单记录，兜底 cron 补派。' },
+      { name: t('settings.language'), description: t('settings.languageDesc') },
+      { name: t('settings.terminalHook'), description: t('settings.terminalHookDesc') },
+      { name: t('settings.dispatchHook'), description: t('settings.dispatchHookDesc') },
+      { name: t('settings.alldayRemind'), description: t('settings.alldayRemindDesc') },
+      { name: t('settings.backstop'), description: t('settings.backstopDesc') },
     ];
   }
 
@@ -24,48 +36,67 @@ export class TaskVaultSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     const cfg = this.config.get();
+    const t = this.getT();
 
-    new Setting(containerEl).setName('Hook 命令').setHeading();
+    new Setting(containerEl).setName(t('settings.interfaceHeading')).setHeading();
 
     new Setting(containerEl)
-      .setName('终态 hook (terminal)')
-      .setDesc(
-        '任务进入 done/cancelled 时执行。占位符 {TASK_PATH} {TASK_ID} {TASK_STATUS} {TASK_TITLE} {TASK_ASSIGNEE}，同时注入 TV_* 环境变量。留空 = 禁用。',
-      )
-      .addTextArea((t) =>
-        t
-          .setPlaceholder('例如：~/bin/on-task-done "{TASK_PATH}"')
+      .setName(t('settings.language'))
+      .setDesc(t('settings.languageDesc'))
+      .addDropdown((d) =>
+        d
+          .addOption('auto', t('settings.langAuto'))
+          .addOption('zh-CN', '简体中文')
+          .addOption('en', 'English')
+          .setValue(cfg.ui_language)
+          .onChange((v) => {
+            // Re-render the panel after the switch so its own labels flip to the new language too.
+            void this.config.update({ ui_language: v as Lang }).then(() => {
+              this.onLangChange();
+              this.display();
+            });
+          }),
+      );
+
+    new Setting(containerEl).setName(t('settings.hooksHeading')).setHeading();
+
+    new Setting(containerEl)
+      .setName(t('settings.terminalHook'))
+      .setDesc(t('settings.terminalHookDesc'))
+      .addTextArea((ta) =>
+        ta
+          .setPlaceholder(t('settings.terminalHookPlaceholder'))
           .setValue(cfg.terminal_hook)
           .onChange((v) => void this.config.update({ terminal_hook: v })),
       );
 
     new Setting(containerEl)
-      .setName('派发 hook (dispatch)')
-      .setDesc('委派任务给 agent 时执行。占位符同上，额外提供 {TASK_INSTRUCTION}。留空 = 禁用。')
-      .addTextArea((t) =>
-        t
-          .setPlaceholder('例如：hermes dispatch --task "{TASK_ID}" --to "{TASK_ASSIGNEE}"')
+      .setName(t('settings.dispatchHook'))
+      .setDesc(t('settings.dispatchHookDesc'))
+      .addTextArea((ta) =>
+        ta
+          .setPlaceholder(t('settings.dispatchHookPlaceholder'))
           .setValue(cfg.dispatch_hook)
           .onChange((v) => void this.config.update({ dispatch_hook: v })),
       );
 
-    new Setting(containerEl).setName('时间默认值').setHeading();
+    new Setting(containerEl).setName(t('settings.timeHeading')).setHeading();
 
     new Setting(containerEl)
-      .setName('全天任务默认提醒时刻')
-      .setDesc('无具体时刻的任务，到期日的提醒时间（HH:MM）。')
-      .addText((t) =>
-        t
+      .setName(t('settings.alldayRemind'))
+      .setDesc(t('settings.alldayRemindDesc'))
+      .addText((ta) =>
+        ta
           .setPlaceholder('09:00')
           .setValue(cfg.default_remind.allday)
           .onChange((v) => void this.config.update({ default_remind: { ...cfg.default_remind, allday: v } })),
       );
 
     new Setting(containerEl)
-      .setName('兜底派发阈值（分钟）')
-      .setDesc('委派后经过此分钟数仍无接单记录，兜底 cron 补派。')
-      .addText((t) =>
-        t
+      .setName(t('settings.backstop'))
+      .setDesc(t('settings.backstopDesc'))
+      .addText((ta) =>
+        ta
           .setPlaceholder('30')
           .setValue(String(cfg.backstop_minutes))
           .onChange((v) => {

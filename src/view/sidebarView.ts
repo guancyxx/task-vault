@@ -7,6 +7,7 @@ import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Bucket } from '../time/timeRules';
+import { createT, type MessageKey, type T } from '../i18n';
 import { agentProgress } from '../model/agentProgress';
 import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
@@ -20,14 +21,17 @@ export type CaptureHandler = (text: string, now: Date) => Promise<void>;
 export const VIEW_TYPE_TASK_VAULT = 'task-vault-view';
 
 // Section order (user request 2026-08-20): overdue first — what's burning shows on top,
-// before today. Then today, this week, done-today.
-const SECTIONS: Array<{ bucket: Bucket; label: string }> = [
-  { bucket: 'review', label: '待复核' },
-  { bucket: 'overdue', label: '过期' },
-  { bucket: 'today', label: '今天' },
-  { bucket: 'week', label: '本周' },
-  { bucket: 'done', label: '今日完成' },
+// before today. Then today, this week, done-today. Titles resolve via the active translator.
+const SECTIONS: Array<{ bucket: Bucket; labelKey: MessageKey }> = [
+  { bucket: 'review', labelKey: 'bucket.review' },
+  { bucket: 'overdue', labelKey: 'bucket.overdue' },
+  { bucket: 'today', labelKey: 'bucket.today' },
+  { bucket: 'week', labelKey: 'bucket.week' },
+  { bucket: 'done', labelKey: 'bucket.done' },
 ];
+
+// Fallback translator when no getT is injected (never in production — the plugin always wires one).
+const DEFAULT_T: T = createT('zh-CN');
 
 export class TaskVaultView extends ItemView {
   private collapsed = new Set<Bucket>(['done']); // 已完成 starts folded
@@ -42,6 +46,7 @@ export class TaskVaultView extends ItemView {
     private actions?: TaskActions,
     private now: () => Date = () => new Date(),
     private onOpenProjects?: () => void,
+    private getT: () => T = () => DEFAULT_T,
   ) {
     super(leaf);
   }
@@ -69,26 +74,27 @@ export class TaskVaultView extends ItemView {
 
   render(): void {
     const root = this.containerEl;
+    const t = this.getT();
     root.empty();
     root.addClass('tv-cockpit');
     // Header link to the projects panel (FR-035). One row above capture; leaves the five
     // sections untouched. Absent when no handler is wired (e.g. read-only tests).
     if (this.onOpenProjects) {
       const bar = root.createDiv({ cls: 'tv-cockpit-header' });
-      const link = bar.createSpan({ cls: 'tv-projects-link', text: '📁 项目面板' });
+      const link = bar.createSpan({ cls: 'tv-projects-link', text: t('sidebar.projects') });
       link.addEventListener('click', () => this.onOpenProjects!());
     }
     this.renderCaptureBox(root);
     const grouped = this.store.bucketed(this.now());
 
-    for (const { bucket, label } of SECTIONS) {
+    for (const { bucket, labelKey } of SECTIONS) {
       const entries = grouped[bucket];
       const section = root.createDiv({ cls: ['tv-section', `tv-section-${bucket}`] });
       const folded = this.collapsed.has(bucket);
 
       const header = section.createDiv({ cls: 'tv-section-header' });
       header.createSpan({ cls: 'tv-fold', text: folded ? '▸' : '▾' });
-      header.createSpan({ cls: 'tv-section-title', text: label });
+      header.createSpan({ cls: 'tv-section-title', text: t(labelKey) });
       header.createSpan({ cls: 'tv-count', text: String(entries.length) });
       header.addEventListener('click', () => {
         if (folded) this.collapsed.delete(bucket);
@@ -104,7 +110,7 @@ export class TaskVaultView extends ItemView {
         return !p || !this.store.hasId(p);
       });
       if (roots.length === 0) {
-        body.createDiv({ cls: 'tv-empty', text: '—' });
+        body.createDiv({ cls: 'tv-empty', text: t('sidebar.empty') });
         continue;
       }
       // Project subgroups (user request 2026-08-19): rows are already group-sorted by
@@ -112,10 +118,11 @@ export class TaskVaultView extends ItemView {
       // is per (bucket, project) — independent across sections — and defaults to folded.
       let lastProject: string | null = null;
       let currentCollapsed = false;
+      const uncat = t('sidebar.uncategorized');
       for (const e of roots) {
         const proj = e.task.project
           ?? (e.task.tags ?? []).find((tg) => tg.startsWith('repo/'))?.slice(5)
-          ?? '未分类';
+          ?? uncat;
         if (proj !== lastProject) {
           lastProject = proj;
           // JSON-encoded [bucket, project] composite key — no control-char separator, and
@@ -126,7 +133,7 @@ export class TaskVaultView extends ItemView {
           div.toggleClass('tv-collapsed', currentCollapsed);
           div.createSpan({ cls: 'tv-project-fold', text: currentCollapsed ? '▸' : '▾' });
           div.createSpan({ cls: 'tv-project-name', text: proj });
-          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, proj)) });
+          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, proj, uncat)) });
           div.addEventListener('click', () => {
             if (this.expandedProjects.has(key)) this.expandedProjects.delete(key);
             else this.expandedProjects.add(key);
@@ -166,6 +173,7 @@ export class TaskVaultView extends ItemView {
       child,
       indent,
       agentPhase: agentProgress(task, entry.body) ?? undefined,
+      t: this.getT(),
     });
 
     if (child && !collapsed) {
@@ -177,8 +185,8 @@ export class TaskVaultView extends ItemView {
     const actions = this.actions!;
     return {
       complete: () => void actions.complete(path),
-      reschedule: (task) => openReschedule(this.app, task.due, (due) => void actions.reschedule(path, due)),
-      openDetail: (_task, evt) => openDetailAt(this.app, this.store, actions, path, evt),
+      reschedule: (task) => openReschedule(this.app, task.due, (due) => void actions.reschedule(path, due), this.getT()),
+      openDetail: (_task, evt) => openDetailAt(this.app, this.store, actions, path, evt, this.getT()),
       openDoc: (_task, p) => void this.app.workspace.openLinkText(p, '', false),
     };
   }
@@ -186,32 +194,34 @@ export class TaskVaultView extends ItemView {
   // Quick-capture input (FR-012): Enter → parse → create task file → row appears via events.
   private renderCaptureBox(root: HTMLElement): void {
     if (!this.onCapture) return;
+    const t = this.getT();
     const input = root.createEl('input', {
       cls: 'tv-capture',
-      attr: { type: 'text', placeholder: '捕获任务…  !high @project #tag 明天下午3点' },
+      attr: { type: 'text', placeholder: t('capture.placeholder') },
     });
     input.addEventListener('keydown', (evt: KeyboardEvent) => {
       if (evt.key !== 'Enter' || evt.isComposing) return; // let IME composition finish
       const text = input.value;
       const now = this.now();
       if (parseCapture(text, now) === null) {
-        new Notice('任务标题为空');
+        new Notice(t('capture.emptyTitle'));
         return;
       }
       input.value = '';
-      void this.onCapture!(text, now).catch((e) => new Notice(`捕获失败：${String(e)}`));
+      void this.onCapture!(text, now).catch((e) => new Notice(t('capture.failed', { err: String(e) })));
     });
   }
 }
 
 
-// Root-row count per project within a bucket (for the divider's count badge).
-function projectCount(roots: Entry[], project: string): number {
+// Root-row count per project within a bucket (for the divider's count badge). `uncat` is the
+// localized fallback label — passed in so it matches the render loop's grouping key exactly.
+function projectCount(roots: Entry[], project: string, uncat: string): number {
   let n = 0;
   for (const e of roots) {
     const p = e.task.project
       ?? (e.task.tags ?? []).find((tg) => tg.startsWith('repo/'))?.slice(5)
-      ?? '未分类';
+      ?? uncat;
     if (p === project) n++;
   }
   return n;

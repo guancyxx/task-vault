@@ -4,10 +4,11 @@
 // (2026-08-19): status reads from the left color rail; changes via the right-click popover.
 // Left click opens the task document; right click (contextmenu) opens the detail popover.
 
-import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
+import { STATUSES, TERMINAL_STATUSES, type Status, type Task } from '../model/types';
 import type { AgentPhase } from '../model/agentProgress';
 import { TRANSITIONS } from '../model/statusMachine';
 import { countdownLabel } from '../time/timeRules';
+import { createT, type MessageKey, type T } from '../i18n';
 
 interface StatusMeta {
   glyph: string;
@@ -17,17 +18,33 @@ interface StatusMeta {
 // Delegation marker (FR-015/016): shown when a task is assigned to someone other than self.
 export const DELEGATE_GLYPH = '➤';
 
-// Human labels for each status (menu items, legend). Single source so they never drift.
-export const STATUS_LABEL: Record<Status, string> = {
-  inbox: '收件箱',
-  todo: '待办',
-  doing: '进行中',
-  review: '待复核',
-  waiting: '等待中',
-  blocked: '被阻塞',
-  done: '已完成',
-  cancelled: '已取消',
+// status → dictionary key (labels live in the i18n dicts, FR-039).
+const STATUS_KEY: Record<Status, MessageKey> = {
+  inbox: 'status.inbox',
+  todo: 'status.todo',
+  doing: 'status.doing',
+  review: 'status.review',
+  waiting: 'status.waiting',
+  blocked: 'status.blocked',
+  done: 'status.done',
+  cancelled: 'status.cancelled',
 };
+
+// Default (zh) translator: the pure helpers below fall back to it when no `t` is injected, so the
+// unit tests keep seeing Chinese labels and STATUS_LABEL stays the single zh source (no drift).
+const ZH: T = createT('zh-CN');
+
+// Localized status label. `t` defaults to zh so pure callers/tests keep Chinese; the UI passes
+// its active translator. Shared with the legend / detail popover / commands so labels never drift.
+export function statusLabel(status: Status, t: T = ZH): string {
+  return t(STATUS_KEY[status]);
+}
+
+// Human labels for each status (menu items, legend), derived from the zh dict — same values as
+// before, now sourced from i18n so the dictionary is the one place they live.
+export const STATUS_LABEL: Record<Status, string> = Object.fromEntries(
+  STATUSES.map((s) => [s, ZH(STATUS_KEY[s])]),
+) as Record<Status, string>;
 
 // Legend seed: status × glyph × color-class (color lives in styles.css via `tv-status-<cls>`).
 export const STATUS_META: Record<Status, StatusMeta> = {
@@ -43,8 +60,9 @@ export const STATUS_META: Record<Status, StatusMeta> = {
 
 // Row tooltip (FR-031): the color rail is the primary status channel, so the row carries
 // a title so hovering names the state. Pure — the single source for the tooltip wording.
-export function statusTooltip(status: Status): string {
-  return `状态：${STATUS_LABEL[status]}（${status}）`;
+// `t` defaults to zh so existing callers/tests get Chinese; the UI passes its active translator.
+export function statusTooltip(status: Status, t: T = ZH): string {
+  return t('row.statusTooltip', { label: statusLabel(status, t), status });
 }
 
 // Legal transition targets for a status, decorated with the label/glyph/color-class a target
@@ -57,10 +75,10 @@ export interface StatusTarget {
   cls: string;
 }
 
-export function statusTargets(status: Status): StatusTarget[] {
+export function statusTargets(status: Status, t: T = ZH): StatusTarget[] {
   return TRANSITIONS[status].map((to) => ({
     to,
-    label: STATUS_LABEL[to],
+    label: statusLabel(to, t),
     glyph: STATUS_META[to].glyph,
     cls: STATUS_META[to].cls,
   }));
@@ -101,6 +119,7 @@ export interface RowContext {
   child?: RowChild; // present when the task has sub-tasks
   indent?: boolean; // this row is itself a sub-task rendered under its parent
   agentPhase?: { phase: AgentPhase; lastActivity?: string };
+  t: T; // active translator, injected by the view (FR-039)
 }
 
 function isTerminal(status: Status): boolean {
@@ -108,11 +127,12 @@ function isTerminal(status: Status): boolean {
 }
 
 export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext): HTMLElement {
+  const t = ctx.t;
   const meta = STATUS_META[ctx.effectiveStatus];
   const blocked = ctx.blockSources.length > 0;
   const row = parent.createDiv({
     cls: ['tv-row', `tv-status-${meta.cls}`],
-    attr: { title: statusTooltip(ctx.effectiveStatus) },
+    attr: { title: statusTooltip(ctx.effectiveStatus, t) },
   });
   row.toggleClass('tv-blocked', blocked);
   row.toggleClass('tv-waiting', ctx.effectiveStatus === 'waiting');
@@ -140,7 +160,7 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
     });
   }
 
-  const box = rail.createEl('input', { cls: 'tv-check', attr: { type: 'checkbox', title: '完成' } });
+  const box = rail.createEl('input', { cls: 'tv-check', attr: { type: 'checkbox', title: t('row.check') } });
   box.checked = ctx.effectiveStatus === 'done';
   box.disabled = !a || isTerminal(ctx.effectiveStatus) || blocked;
   box.addEventListener('click', (evt) => evt.stopPropagation());
@@ -173,7 +193,7 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
   }
   if (ctx.agentPhase) {
     const { phase, lastActivity } = ctx.agentPhase;
-    let text = AGENT_PHASE_LABEL[phase];
+    let text = t(AGENT_PHASE_KEY[phase]);
     let stale = false;
     if (phase === 'working' && lastActivity) {
       const hours = Math.max(0, Math.floor((ctx.now.getTime() - parseLogTime(lastActivity).getTime()) / 3_600_000));
@@ -184,11 +204,11 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
     chip.toggleClass('tv-stale', stale);
   }
   if (ctx.effectiveStatus === 'waiting') {
-    tags.createSpan({ cls: 'tv-tag tv-tag-waiting', text: '⏳ 等待中' });
+    tags.createSpan({ cls: 'tv-tag tv-tag-waiting', text: t('row.waiting') });
   }
   if (blocked) {
-    const names = ctx.blockSources.map((t) => t.title).join('、');
-    tags.createSpan({ cls: 'tv-tag tv-block-src', text: '⛔ 被阻塞', attr: { title: `阻塞源：${names}` } });
+    const names = ctx.blockSources.map((s) => s.title).join('、');
+    tags.createSpan({ cls: 'tv-tag tv-block-src', text: t('row.blocked'), attr: { title: t('row.blockSource', { names }) } });
   }
 
   // Row 2: full multi-line title.
@@ -196,11 +216,10 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
 
   // Row 3 (bottom, right-aligned): dates — due/countdown chip, start, sub-task progress.
   const dates = col.createDiv({ cls: 'tv-dates' });
-  const badge = countdownLabel(task, ctx.now);
+  const badge = countdownLabel(task, ctx.now, t);
   let chip: HTMLElement | null = null;
   if (badge) {
-    const overdue = badge.startsWith('超期');
-    chip = dates.createSpan({ cls: ['tv-badge', overdue ? 'tv-overdue' : 'tv-countdown'], text: badge });
+    chip = dates.createSpan({ cls: ['tv-badge', badge.overdue ? 'tv-overdue' : 'tv-countdown'], text: badge.text });
   } else if (task.due) {
     chip = dates.createSpan({ cls: ['tv-badge', 'tv-date'], text: dueChip(task.due) });
   }
@@ -219,11 +238,11 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
   return row;
 }
 
-const AGENT_PHASE_LABEL: Record<AgentPhase, string> = {
-  dispatched: '📡 已派发',
-  working: '⚙ 执行中',
-  stuck: '⛔ 卡点',
-  review: '👁 待复核',
+const AGENT_PHASE_KEY: Record<AgentPhase, MessageKey> = {
+  dispatched: 'agent.dispatched',
+  working: 'agent.working',
+  stuck: 'agent.stuck',
+  review: 'agent.review',
 };
 
 function parseLogTime(value: string): Date {

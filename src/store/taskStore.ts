@@ -65,6 +65,11 @@ export class TaskStore {
     return () => this.listeners.delete(cb);
   }
 
+  // Force a re-render of all subscribers without a data change (FR-039: language switch).
+  notify(): void {
+    this.emit();
+  }
+
   private emit(): void {
     for (const l of this.listeners) l();
   }

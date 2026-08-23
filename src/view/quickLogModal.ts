@@ -12,17 +12,16 @@ import { Modal, Notice, type App } from 'obsidian';
 import type { EntryKind } from '../log/executionLog';
 import type { TaskActions } from '../store/taskActions';
 import type { TaskStore } from '../store/taskStore';
+import type { T } from '../i18n';
 import { KINDS } from './detailPopover';
 
-const NOT_A_TASK = '当前文件不是任务文件（无 frontmatter id，未被 Task Vault 索引）';
-
-export function openQuickLog(app: App, store: TaskStore, actions: TaskActions, path: string): void {
+export function openQuickLog(app: App, store: TaskStore, actions: TaskActions, path: string, t: T): void {
   const entry = store.entryByPath(path);
   if (!entry) {
-    new Notice(NOT_A_TASK);
+    new Notice(t('cmd.notIndexed'));
     return;
   }
-  new QuickLogModal(app, actions, path, entry.task.title).open();
+  new QuickLogModal(app, actions, path, entry.task.title, t).open();
 }
 
 // Quick-annotate commands (FR-032): kind is fixed (决策/评论/卡点), so the same modal drops the
@@ -33,13 +32,14 @@ export function openAnnotate(
   actions: TaskActions,
   path: string,
   kind: EntryKind,
+  t: T,
 ): void {
   const entry = store.entryByPath(path);
   if (!entry) {
-    new Notice(NOT_A_TASK);
+    new Notice(t('cmd.notIndexed'));
     return;
   }
-  new QuickLogModal(app, actions, path, entry.task.title, kind).open();
+  new QuickLogModal(app, actions, path, entry.task.title, t, kind).open();
 }
 
 class QuickLogModal extends Modal {
@@ -48,6 +48,7 @@ class QuickLogModal extends Modal {
     private actions: TaskActions,
     private path: string,
     private title: string,
+    private t: T,
     // When set the kind is fixed (annotate command): no select, kind shown in the title.
     private fixedKind?: EntryKind,
   ) {
@@ -56,6 +57,7 @@ class QuickLogModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
+    const t = this.t;
     contentEl.empty();
     contentEl.addClass('tv-detail'); // reuse the popover's panel/input/button styles wholesale
     const card = contentEl.createDiv({ cls: 'tv-panel' });
@@ -64,18 +66,19 @@ class QuickLogModal extends Modal {
 
     let select: HTMLSelectElement | undefined;
     if (this.fixedKind) {
-      this.setTitle(`快捷标注 · ${this.fixedKind}`);
-      card.createDiv({ cls: 'tv-panel-title', text: '快捷标注 → ## 执行记录' });
+      // fixedKind is the EntryKind (data value, e.g. 决策) — shown verbatim in the title.
+      this.setTitle(t('quicklog.annotateTitle', { kind: this.fixedKind }));
+      card.createDiv({ cls: 'tv-panel-title', text: t('quicklog.annotatePanel') });
     } else {
-      this.setTitle(`记一条 · ${this.title}`);
-      card.createDiv({ cls: 'tv-panel-title', text: '快速填入 → ## 执行记录' });
+      this.setTitle(t('quicklog.logTitle', { title: this.title }));
+      card.createDiv({ cls: 'tv-panel-title', text: t('quicklog.fillPanel') });
       select = row.createEl('select');
-      for (const k of KINDS) select.createEl('option', { text: k.label, attr: { value: k.value } });
+      for (const k of KINDS) select.createEl('option', { text: t(k.labelKey), attr: { value: k.value } });
     }
     const input = row.createEl('input', {
-      attr: { type: 'text', placeholder: '记一条…回车提交' },
+      attr: { type: 'text', placeholder: t('quicklog.placeholder') },
     });
-    const btn = row.createEl('button', { cls: 'tv-btn tv-btn-cta', text: '填入' });
+    const btn = row.createEl('button', { cls: 'tv-btn tv-btn-cta', text: t('detail.fillBtn') });
 
     // Unlike the popover panel (stays open for chains), this modal closes after commit:
     // it was summoned mid-editing — the user wants to be back in the prose, one Esc away
@@ -83,17 +86,17 @@ class QuickLogModal extends Modal {
     const submit = (): void => {
       const text = input.value.trim();
       if (!text) {
-        new Notice('先写点内容');
+        new Notice(t('detail.emptyContent'));
         input.focus();
         return;
       }
       const kind = this.fixedKind ?? ((select?.value || undefined) as EntryKind | undefined);
       void this.actions.appendQuick(this.path, text, kind).then(
         () => {
-          new Notice('已写入执行记录（区首）');
+          new Notice(t('quicklog.wrote'));
           this.close();
         },
-        (e: unknown) => new Notice(`写入失败：${String(e)}`),
+        (e: unknown) => new Notice(t('quicklog.failed', { err: String(e) })),
       );
     };
 

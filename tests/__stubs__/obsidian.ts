@@ -3,7 +3,11 @@
 // `obsidian` value-imports (Modal/Notice/…) still need those names to resolve. These are
 // behavior-free placeholders — the suites here exercise pure logic, never the UI shells.
 export class Notice {
-  constructor(_message?: string, _timeout?: number) {}
+  // Record shown messages so suites can assert on user-facing notice text (FR-039 i18n).
+  static messages: string[] = [];
+  constructor(message?: string, _timeout?: number) {
+    if (message !== undefined) Notice.messages.push(message);
+  }
 }
 export class Modal {
   constructor(_app?: unknown) {}

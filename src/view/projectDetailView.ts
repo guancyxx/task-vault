@@ -10,11 +10,15 @@ import { projectFolder } from '../store/taskPaths';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Status } from '../model/types';
+import { createT, type T } from '../i18n';
 import { openDetailAt } from './detailPopover';
 import { openReschedule } from './reschedule';
-import { STATUS_LABEL, renderTaskRow, type RowActions } from './taskRow';
+import { renderTaskRow, statusLabel, type RowActions } from './taskRow';
 
 export const VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL = 'task-vault-project-detail';
+
+// Fallback translator when no getT is injected (never in production — the plugin always wires one).
+const DEFAULT_T: T = createT('zh-CN');
 
 // Group order (FR-035): live work first, blocked overlay, then the terminal archive at the bottom.
 const GROUPS: readonly Status[] = ['review', 'doing', 'waiting', 'todo', 'inbox', 'blocked'];
@@ -33,6 +37,7 @@ export class ProjectDetailView extends ItemView {
     private store: TaskStore,
     private actions: TaskActions,
     private openProjects: OpenProjects,
+    private getT: () => T = () => DEFAULT_T,
     private now: () => Date = () => new Date(),
   ) {
     super(leaf);
@@ -43,7 +48,8 @@ export class ProjectDetailView extends ItemView {
   }
 
   getDisplayText(): string {
-    return this.project ? `项目 · ${this.project}` : '项目详情';
+    const t = this.getT();
+    return this.project ? t('projectDetail.title', { project: this.project }) : t('projectDetail.fallback');
   }
 
   getIcon(): string {
@@ -72,13 +78,14 @@ export class ProjectDetailView extends ItemView {
 
   render(): void {
     const root = this.containerEl;
+    const t = this.getT();
     root.empty();
     root.addClass('tv-project-detail');
 
     const header = root.createDiv({ cls: 'tv-proj-detail-header' });
-    const back = header.createEl('button', { cls: 'tv-proj-back', text: '← 返回' });
+    const back = header.createEl('button', { cls: 'tv-proj-back', text: t('projectDetail.back') });
     back.addEventListener('click', () => this.openProjects());
-    header.createSpan({ cls: 'tv-proj-detail-title', text: this.project || '项目详情' });
+    header.createSpan({ cls: 'tv-proj-detail-title', text: this.project || t('projectDetail.fallback') });
 
     // Every task filed under this project, keyed by the root task's effective status.
     const entries = this.store.allEntries().filter((e) => projectFolder(e.task) === this.project);
@@ -94,7 +101,7 @@ export class ProjectDetailView extends ItemView {
       rendered += groupRoots.length;
       this.renderGroup(root, status, groupRoots);
     }
-    if (rendered === 0) root.createDiv({ cls: 'tv-empty', text: '该项目暂无任务' });
+    if (rendered === 0) root.createDiv({ cls: 'tv-empty', text: t('projectDetail.empty') });
   }
 
   private renderGroup(root: HTMLElement, status: Status, groupRoots: Entry[]): void {
@@ -102,7 +109,7 @@ export class ProjectDetailView extends ItemView {
     const section = root.createDiv({ cls: ['tv-section', `tv-section-${status}`] });
     const header = section.createDiv({ cls: 'tv-section-header' });
     header.createSpan({ cls: 'tv-fold', text: folded ? '▸' : '▾' });
-    header.createSpan({ cls: 'tv-section-title', text: STATUS_LABEL[status] });
+    header.createSpan({ cls: 'tv-section-title', text: statusLabel(status, this.getT()) });
     header.createSpan({ cls: 'tv-count', text: String(groupRoots.length) });
     header.addEventListener('click', () => {
       if (folded) this.collapsedGroups.delete(status);
@@ -141,6 +148,7 @@ export class ProjectDetailView extends ItemView {
       child,
       indent,
       agentPhase: agentProgress(task, entry.body) ?? undefined,
+      t: this.getT(),
     });
 
     if (child && !collapsed) {
@@ -152,8 +160,8 @@ export class ProjectDetailView extends ItemView {
     const actions = this.actions;
     return {
       complete: () => void actions.complete(path),
-      reschedule: (task) => openReschedule(this.app, task.due, (due) => void actions.reschedule(path, due)),
-      openDetail: (_task, evt) => openDetailAt(this.app, this.store, actions, path, evt),
+      reschedule: (task) => openReschedule(this.app, task.due, (due) => void actions.reschedule(path, due), this.getT()),
+      openDetail: (_task, evt) => openDetailAt(this.app, this.store, actions, path, evt, this.getT()),
       openDoc: (_task, p) => void this.app.workspace.openLinkText(p, '', false),
     };
   }

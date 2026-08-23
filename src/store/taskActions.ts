@@ -7,6 +7,7 @@
 // is manually verified (docs/manual-check-d.md).
 
 import { Notice, TFile, type App } from 'obsidian';
+import { createT, type T } from '../i18n';
 import type { FireResult, HookRunner } from '../hooks/hookRunner';
 import type { EntryInput, EntryKind } from '../log/executionLog';
 import { completeTransition, isLegalTransition, transition } from '../model/statusMachine';
@@ -21,6 +22,9 @@ export interface SectionWriter {
 
 const DELEGATE_HEADING = '## 委派';
 
+// Default (zh) translator so the constructor stays a pure-logic default for unit tests.
+const ZH: T = createT('zh-CN');
+
 export class TaskActions {
   constructor(
     private app: App,
@@ -31,6 +35,9 @@ export class TaskActions {
     // inject an agent actor, which is then constrained by the FR-030 machine guard.
     private actor: Actor = 'user',
     private now: () => Date = () => new Date(),
+    // Live translator getter (FR-039): read per Notice so a language switch takes effect without
+    // reconstructing the seam. Defaults to zh so tests keep exercising pure logic in Chinese.
+    private getT: () => T = () => ZH,
   ) {}
 
   // Checkbox complete: advance through the legal chain to done in one gesture (FR-013).
@@ -38,7 +45,7 @@ export class TaskActions {
     const task = this.taskAt(path);
     if (!task) return;
     if (this.store.isBlocked(task.id)) {
-      new Notice('被阻塞，无法完成');
+      new Notice(this.getT()('action.blocked'));
       return;
     }
     const res = completeTransition(task, this.actor, this.now());
@@ -53,7 +60,7 @@ export class TaskActions {
     const task = this.taskAt(path);
     if (!task) return;
     if (!isLegalTransition(task.status, to)) {
-      new Notice(`非法状态转移：${task.status} → ${to}`);
+      new Notice(this.getT()('action.illegalTransition', { from: task.status, to }));
       return;
     }
     const res = transition(task, to, this.actor, this.now());
@@ -123,7 +130,7 @@ export class TaskActions {
     try {
       return await this.hooks.fireDispatch({ ...task, assignee, dispatched: stamp }, path, instruction);
     } catch (e) {
-      new Notice(`派发 hook 失败：${String(e)}`);
+      new Notice(this.getT()('action.dispatchHookFailed', { err: String(e) }));
       return 'error';
     }
   }
@@ -133,9 +140,9 @@ export class TaskActions {
     if (!task) return;
     try {
       const res = await this.hooks.fireManualSummary(task, path);
-      if (res === 'disabled') new Notice('未配置终态 hook');
+      if (res === 'disabled') new Notice(this.getT()('action.summaryHookDisabled'));
     } catch (e) {
-      new Notice(`总结 hook 失败：${String(e)}`);
+      new Notice(this.getT()('action.summaryHookFailed', { err: String(e) }));
     }
   }
 
@@ -147,7 +154,7 @@ export class TaskActions {
     try {
       await this.hooks.fireTerminal(task, path);
     } catch (e) {
-      new Notice(`终态 hook 失败：${String(e)}`);
+      new Notice(this.getT()('action.terminalHookFailed', { err: String(e) }));
     }
   }
 

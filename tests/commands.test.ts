@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createT } from '../src/i18n';
 import { TRANSITIONS } from '../src/model/statusMachine';
 import { STATUSES, type Status } from '../src/model/types';
 import { COMMAND_ROWS, commandGate } from '../src/view/commands';
@@ -43,7 +44,9 @@ describe('command registry (FR-032 六命令)', () => {
       'set-status:S',
       'delegate:A',
     ]);
-    for (const row of COMMAND_ROWS) expect(row.name.length).toBeGreaterThan(0);
+    // name is now a dictionary key (FR-039): assert it resolves to a non-empty display string.
+    const t = createT('zh-CN');
+    for (const row of COMMAND_ROWS) expect(t(row.nameKey).length).toBeGreaterThan(0);
   });
 
   it('gate passes only indexed task paths (grey-out otherwise)', () => {

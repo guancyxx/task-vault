@@ -6,6 +6,7 @@
 
 import { Notice } from 'obsidian';
 import type { FireResult } from '../hooks/hookRunner';
+import type { T } from '../i18n';
 
 // Recommended delegation order (FR-015): CC > Codex > Hermes.
 export const AGENTS: Array<{ value: string; label: string }> = [
@@ -23,19 +24,21 @@ export interface DelegatePanelOpts {
   onSubmit(assignee: string, instruction: string, btn: HTMLButtonElement): void;
 }
 
-export function renderDelegatePanel(body: HTMLElement, opts: DelegatePanelOpts): void {
+export function renderDelegatePanel(body: HTMLElement, t: T, opts: DelegatePanelOpts): void {
   const wrap = body.createDiv({ cls: 'tv-detail-delegate' });
   const select = wrap.createEl('select');
+  // AGENTS labels are brand names (CC/Codex/Hermes) and values are assignees written to
+  // frontmatter — both data, not localized.
   for (const a of AGENTS) select.createEl('option', { text: a.label, attr: { value: a.value } });
   if (opts.assignee) select.value = opts.assignee;
-  const instruction = wrap.createEl('textarea', { attr: { placeholder: '给 agent 的指令（全文写入「## 委派」）' } });
+  const instruction = wrap.createEl('textarea', { attr: { placeholder: t('delegate.placeholder') } });
   instruction.value = opts.instruction;
   instruction.addEventListener('input', () => opts.onInstructionChange?.(instruction.value));
-  const btn = wrap.createEl('button', { cls: 'tv-btn tv-btn-cta', text: '委派' });
+  const btn = wrap.createEl('button', { cls: 'tv-btn tv-btn-cta', text: t('delegate.btn') });
   btn.addEventListener('click', () => {
     const text = instruction.value.trim();
     if (!text) {
-      new Notice('请填写委派指令');
+      new Notice(t('delegate.emptyInstruction'));
       return;
     }
     opts.onSubmit(select.value, text, btn);
@@ -44,9 +47,8 @@ export function renderDelegatePanel(body: HTMLElement, opts: DelegatePanelOpts):
 
 // FireResult → user-facing notice. 只有真 fire 了 hook 才叫「已委派」——hook 空或炸了必须说出来，
 // 否则 frontmatter 写了、agent 没起，用户以为交出去了（FR-021 回归）。
-export function notifyDelegateResult(res: FireResult | 'error', assignee: string): void {
-  if (res === 'fired') new Notice(`已委派给 ${assignee}`);
-  else if (res === 'disabled')
-    new Notice(`⚠️ 已写入 ${assignee}，但派发 hook 未配置——没有 agent 被启动（设置 → Task Vault → 派发 hook）`, 10000);
-  else new Notice(`⚠️ 已写入 ${assignee}，但派发失败——没有 agent 被启动`, 10000);
+export function notifyDelegateResult(res: FireResult | 'error', assignee: string, t: T): void {
+  if (res === 'fired') new Notice(t('delegate.fired', { assignee }));
+  else if (res === 'disabled') new Notice(t('delegate.disabled', { assignee }), 10000);
+  else new Notice(t('delegate.failed', { assignee }), 10000);
 }

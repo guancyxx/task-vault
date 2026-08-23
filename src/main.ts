@@ -1,13 +1,14 @@
-import { FileSystemAdapter, Plugin, type WorkspaceLeaf } from 'obsidian';
+import { FileSystemAdapter, Plugin, type Command, type WorkspaceLeaf } from 'obsidian';
 import { ConfigService, DEFAULT_CONFIG, normalizeConfig, type Config } from './config';
 import { EMPTY_LEDGER, HookRunner, NodeHookExec, normalizeLedger, type Ledger } from './hooks/hookRunner';
+import { createT, resolveLang, type ResolvedLang, type T } from './i18n';
 import { TaskVaultSettingTab } from './settings';
 import { NodeJsonStore } from './store/jsonStore';
 import { TaskActions } from './store/taskActions';
 import { TaskStore } from './store/taskStore';
 import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
-import { registerCommands } from './view/commands';
+import { COMMAND_ROWS, registerCommands } from './view/commands';
 import { openLegend } from './view/legend';
 import { ProjectDetailView, VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL } from './view/projectDetailView';
 import { ProjectVaultView, VIEW_TYPE_TASK_VAULT_PROJECTS } from './view/projectsView';
@@ -26,6 +27,13 @@ export default class TaskVaultPlugin extends Plugin {
   private store!: TaskStore;
   private config!: ConfigService;
   private actions!: TaskActions;
+  // FR-039: current UI language + translator. Views/commands read `this.t` live via a getter,
+  // so a language switch takes effect on the next render / palette open — no plugin reload.
+  private lang: ResolvedLang = 'zh-CN';
+  private t: T = createT('zh-CN');
+  private commands: Command[] = [];
+  // Ribbon icon element — kept so its tooltip (aria-label) can be relabeled on a language switch.
+  private ribbonEl: HTMLElement | null = null;
 
   // Obsidian's Plugin.onload is typed `void`; keep it synchronous and fire the async
   // bootstrap without returning a promise (Scorecard: no promise where void is expected).
@@ -39,6 +47,8 @@ export default class TaskVaultPlugin extends Plugin {
       new NodeJsonStore<Config>(`${dir}/config.json`, DEFAULT_CONFIG, normalizeConfig),
     );
     await this.config.load();
+    this.recomputeLang();
+    const getT = (): T => this.t;
 
     const hooks = new HookRunner({
       config: () => this.config.get(),
@@ -49,7 +59,7 @@ export default class TaskVaultPlugin extends Plugin {
 
     const source = new VaultSource(this.app);
     this.store = new TaskStore(source, source, () => new Date(), source);
-    this.actions = new TaskActions(this.app, this.store, source, hooks);
+    this.actions = new TaskActions(this.app, this.store, source, hooks, 'user', () => new Date(), getT);
 
     const onCapture = async (text: string, now: Date): Promise<void> => {
       const capture = parseCapture(text, now);
@@ -60,7 +70,7 @@ export default class TaskVaultPlugin extends Plugin {
       VIEW_TYPE_TASK_VAULT,
       (leaf) =>
         new TaskVaultView(leaf, this.store, onCapture, this.actions, () => new Date(), () =>
-          void this.activateProjectsView(),
+          void this.activateProjectsView(), getT,
         ),
     );
 
@@ -68,12 +78,12 @@ export default class TaskVaultPlugin extends Plugin {
     // button re-reveals the panel.
     this.registerView(
       VIEW_TYPE_TASK_VAULT_PROJECTS,
-      (leaf) => new ProjectVaultView(leaf, this.store, (project) => this.openProjectDetail(project)),
+      (leaf) => new ProjectVaultView(leaf, this.store, (project) => this.openProjectDetail(project), getT),
     );
     this.registerView(
       VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL,
       (leaf) =>
-        new ProjectDetailView(leaf, this.store, this.actions, () => void this.activateProjectsView()),
+        new ProjectDetailView(leaf, this.store, this.actions, () => void this.activateProjectsView(), getT),
     );
 
     for (const ref of wireVaultEvents(this.app, this.store)) this.registerEvent(ref);
@@ -81,15 +91,57 @@ export default class TaskVaultPlugin extends Plugin {
     // Build the index once the vault's file list is ready, then let events keep it live.
     this.app.workspace.onLayoutReady(() => void this.store.scan());
 
-    this.addSettingTab(new TaskVaultSettingTab(this.app, this, this.config));
+    this.addSettingTab(new TaskVaultSettingTab(this.app, this, this.config, getT, () => this.applyLanguage()));
     // 'vault' lucide icon — matches the Check Seal logo (vault door + check).
-    this.addRibbonIcon('vault', 'Open Task Vault', () => void this.activateView());
-    this.addCommand({ id: 'open', name: 'Open', callback: () => void this.activateView() });
-    this.addCommand({ id: 'open-projects', name: '项目面板', callback: () => void this.activateProjectsView() });
-    this.addCommand({ id: 'legend', name: '图例', callback: () => openLegend(this.app) });
-    // FR-032 / SC-013: the six task commands (记一条 / 快捷标注 决策·评论·卡点 / 设置状态 / 委派),
-    // each gated on the active file being an indexed task, with default Mod+Shift L/D/C/K/S/A hotkeys.
-    registerCommands(this, this.app, this.store, this.actions);
+    this.ribbonEl = this.addRibbonIcon('vault', this.t('ribbon.open'), () => void this.activateView());
+    // The three chrome commands + the six task commands. All names resolve via `this.t`; on a
+    // language switch, applyLanguage() rewrites every .name (the palette re-reads it on open).
+    this.commands = [
+      this.addCommand({ id: 'open', name: this.t('cmd.open'), callback: () => void this.activateView() }),
+      this.addCommand({ id: 'open-projects', name: this.t('cmd.openProjects'), callback: () => void this.activateProjectsView() }),
+      this.addCommand({ id: 'legend', name: this.t('cmd.legend'), callback: () => openLegend(this.app, this.t) }),
+      // FR-032 / SC-013: the six task commands, each gated on the active file being an indexed
+      // task, with default Mod+Shift L/D/C/K/S/A hotkeys.
+      ...registerCommands(this, this.app, this.store, this.actions, getT),
+    ];
+  }
+
+  // Resolve the effective language from config + Obsidian's UI language and rebuild the translator.
+  private recomputeLang(): void {
+    this.lang = resolveLang(this.config.get().ui_language, this.obsidianLocale());
+    this.t = createT(this.lang);
+  }
+
+  // Obsidian's display language. There is no typed `moment`/`app.locale` in the local shim, so we
+  // read the value Obsidian persists in localStorage ('language', e.g. 'zh', 'en'); `app.locale()`
+  // is tried first if the runtime exposes it. Empty → resolveLang falls back to en.
+  private obsidianLocale(): string {
+    const fromApp = (this.app as { locale?: () => string }).locale?.();
+    if (fromApp) return fromApp;
+    try {
+      return window.localStorage.getItem('language') ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  // FR-039 live switch: recompute the translator, relabel commands, and re-render open views (they
+  // read the getter at render time, so a store notify is enough — no reload).
+  private applyLanguage(): void {
+    this.recomputeLang();
+    const nameKeyById: Record<string, Parameters<T>[0]> = {
+      open: 'cmd.open',
+      'open-projects': 'cmd.openProjects',
+      legend: 'cmd.legend',
+    };
+    for (const row of COMMAND_ROWS) nameKeyById[row.id] = row.nameKey;
+    for (const cmd of this.commands) {
+      const key = nameKeyById[cmd.id];
+      if (key) cmd.name = this.t(key);
+    }
+    // Obsidian drives the ribbon tooltip from aria-label — reset it so the hover text follows suit.
+    this.ribbonEl?.setAttribute('aria-label', this.t('ribbon.open'));
+    this.store.notify();
   }
 
   private async activateView(): Promise<void> {
