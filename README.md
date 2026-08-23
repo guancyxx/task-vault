@@ -61,7 +61,7 @@ Task Vault fixes the data model first:
 2. Put them in `<vault>/.obsidian/plugins/task-vault/`.
 3. Enable "Task Vault" in Settings → Community plugins.
 
-[releases]: https://github.com/guancyxx/obsidian-task-vault/releases
+[releases]: https://github.com/guancyxx/task-vault/releases
 
 ## Data model
 
@@ -83,6 +83,24 @@ tags: [watch]
 ```
 
 See the full spec (Chinese) in `docs/任务系统规范.md`.
+
+## For AI agents
+
+Task Vault is built agent-first: any CLI agent (Hermes, Claude Code, Codex, …) can operate
+tasks directly, and the review gate keeps agents honest. Point your agent at
+[`skills/task-vault-agent/SKILL.md`](skills/task-vault-agent/SKILL.md) — the complete
+protocol covering:
+
+- task file format & folder rules (frontmatter schema, two-section body)
+- the write protocol (re-read before patch, append-only log, load-bearing entry format)
+- status transitions & the review gate (agents deliver to `review`, never `done`,
+  unless carrying a verifiable in-chat approval citation)
+- delegation protocol (dispatch hooks, acceptance entries, backstop)
+- the optional built-in localhost API (`POST /tasks`, `GET/PATCH /tasks/:id`,
+  `POST /tasks/:id/log`) — routes writes through the state machine and gate
+
+For the local API: enable it in Settings → Task Vault (off by default; issues a per-agent
+Bearer token; binds 127.0.0.1 only).
 
 ## Limitations
 
