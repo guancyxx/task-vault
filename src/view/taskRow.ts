@@ -6,6 +6,7 @@
 
 import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
 import type { AgentPhase } from '../model/agentProgress';
+import { TRANSITIONS } from '../model/statusMachine';
 import { countdownLabel } from '../time/timeRules';
 
 interface StatusMeta {
@@ -44,6 +45,25 @@ export const STATUS_META: Record<Status, StatusMeta> = {
 // a title so hovering names the state. Pure — the single source for the tooltip wording.
 export function statusTooltip(status: Status): string {
   return `状态：${STATUS_LABEL[status]}（${status}）`;
+}
+
+// Legal transition targets for a status, decorated with the label/glyph/color-class a target
+// button renders (FR-032 设置状态 command; also mirrors the detail popover's status buttons).
+// Empty for a state with no legal exits. Pure so it's unit-testable without the obsidian shim.
+export interface StatusTarget {
+  to: Status;
+  label: string;
+  glyph: string;
+  cls: string;
+}
+
+export function statusTargets(status: Status): StatusTarget[] {
+  return TRANSITIONS[status].map((to) => ({
+    to,
+    label: STATUS_LABEL[to],
+    glyph: STATUS_META[to].glyph,
+    cls: STATUS_META[to].cls,
+  }));
 }
 
 // Priority → tag label (user request 2026-08-19: show priority as p0-p3 tags).

@@ -7,8 +7,8 @@ import { TaskActions } from './store/taskActions';
 import { TaskStore } from './store/taskStore';
 import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
+import { registerCommands } from './view/commands';
 import { openLegend } from './view/legend';
-import { openQuickLog } from './view/quickLogModal';
 import { TaskVaultView, VIEW_TYPE_TASK_VAULT } from './view/sidebarView';
 
 export { VIEW_TYPE_TASK_VAULT };
@@ -63,24 +63,9 @@ export default class TaskVaultPlugin extends Plugin {
     this.addRibbonIcon('vault', 'Open Task Vault', () => void this.activateView());
     this.addCommand({ id: 'open', name: 'Open', callback: () => void this.activateView() });
     this.addCommand({ id: 'legend', name: '图例', callback: () => openLegend(this.app) });
-    // FR-027 / SC-011: quick-log against the active editor file — the sidebar popover only
-    // covers sidebar rows, so editing a task doc mid-flight had no canonical entry point.
-    this.addCommand({
-      id: 'quick-log',
-      name: '记一条执行记录',
-      // No default hotkey (review guidance: defaults can collide with user/Obsidian bindings).
-      // Users can bind one in Settings → Hotkeys, e.g. Cmd+Shift+L.
-      checkCallback: (checking: boolean) => {
-        const file = this.app.workspace.getActiveFile();
-        if (!file) return false;
-        const path = file.path;
-        // Gate on the store index, not a path heuristic: only files Task Vault actually
-        // knows about (frontmatter id parsed) get the entry point.
-        if (!this.store.entryByPath(path)) return false;
-        if (!checking) openQuickLog(this.app, this.store, this.actions, path);
-        return true;
-      },
-    });
+    // FR-032 / SC-013: the six task commands (记一条 / 快捷标注 决策·评论·卡点 / 设置状态 / 委派),
+    // each gated on the active file being an indexed task, with default Mod+Shift L/D/C/K/S/A hotkeys.
+    registerCommands(this, this.app, this.store, this.actions);
   }
 
   private async activateView(): Promise<void> {
