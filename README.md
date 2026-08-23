@@ -62,6 +62,61 @@ Task Vault fixes the data model first:
 - **Natural-language capture** — `!high`, `@project`, `#tag`, and Chinese/English date
   phrases (`明天3点`, `friday`).
 
+## Apple Reminders sync
+
+Obsidian has no official Apple Reminders integration: Obsidian Sync synchronizes vault
+files, not the Reminders database. Existing integrations in the ecosystem are
+third-party macOS apps. Task Vault instead offers an optional DIY route through
+[`scripts/reminders_sync.py`](scripts/reminders_sync.py), a Python synchronizer that runs
+outside Obsidian on a cron schedule.
+
+The synchronizer is bidirectional between vault tasks and the single Apple Reminders
+list named **待办**. Tasks with a `due` value are mirrored into that list; tasks without
+`due` are not mirrored. Reminders created in **待办** can be imported into the vault,
+and checking a mirrored reminder on an iPhone writes the task back as `done` and fires
+the terminal hook if it has not already fired.
+
+Setup requires macOS:
+
+1. Install a compatible `remindctl` CLI and make sure both `remindctl` and `python3` are
+   available on the scheduler's `PATH`. Run `remindctl` once in Terminal and allow the
+   macOS Reminders/AppleScript access prompt before scheduling unattended runs.
+2. Add a five-minute cron entry, replacing the repository and vault placeholders with
+   your own absolute paths (cron has a minimal environment, so explicit executable
+   paths are recommended):
+
+   ```cron
+   */5 * * * * cd /path/to/task-vault && /usr/bin/python3 scripts/reminders_sync.py --vault /path/to/vault >> /tmp/task-vault-reminders.log 2>&1
+   ```
+
+3. Keep the Apple Reminders list name **待办** unchanged; it is the synchronizer's only
+   mirror list.
+
+This integration is self-hosted/DIY and macOS-only. Not installing it has no effect on
+the plugin's core task-management features.
+
+## Permissions & capabilities
+
+Task Vault uses several desktop capabilities that community-market security scans may
+flag:
+
+- **Direct Node.js filesystem access** — reads and atomically writes
+  `.taskvault/config.json` and `.taskvault/ledger.json` at the vault root for hook
+  settings and idempotency/dispatch state. Leaving both hooks empty disables hook-related
+  activity; disabling the plugin stops this local file access entirely.
+- **Shell execution through `child_process`** — runs the terminal and dispatch hook
+  commands configured by the user. Both hooks are empty (disabled) by default, and
+  leaving them empty disables all plugin-initiated shell commands.
+- **Full vault enumeration** — enumerates Markdown files in the vault, then filters to
+  `03 Tasks/` to build the task index used by the sidebar and commands. Disable this
+  capability by disabling the Task Vault plugin.
+- **Clipboard write access** — powers the “copy task prompt” and “copy link” buttons. It
+  is used only when one of those buttons is clicked; avoid those actions to leave the
+  clipboard untouched. The plugin never reads the clipboard.
+
+Task Vault includes no telemetry and makes no network requests, apart from any network
+behavior performed by hook commands that the user explicitly configures.
+
 ## Install
 
 ### From Community Market (pending review)
