@@ -100,7 +100,7 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区最前面�
 - **UTC 铁律（继承已修坑 2）**：remindctl 的 dueDate 是 UTC；设本地时刻 T 的定时提醒 → dueDate = T−8h 的 UTC；比较日期必须 +8h 后再取 date。
 - **complete 必须传完整 UUID**（8 位前缀报 Invalid identifier）。
 - 唯一清单「待办」（用户明确要求，不建分列表）。
-- 无 "程序性 complete 孤儿清理"——UUID 身份下孤儿（mirror 指向不存在 id）只报告不自动删。
+- 无 "程序性 complete 孤儿清理"——UUID 身份下孤儿（mirror 指向不存在 id）只报告不自动删。例外（T023, 2026-08-21）：归档脚本删除终态任务自己名下 mirror 指向的提醒，属生命周期收尾而非孤儿清理。
 
 ## 9. 兜底派发 cron 判据
 
