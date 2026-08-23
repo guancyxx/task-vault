@@ -1,5 +1,17 @@
 // FR-030 external-write guard. UI actions carry an explicit user actor and bypass this module;
 // TaskStore invokes it only while ingesting an incremental vault upsert.
+//
+// User-confirmation channels — any ONE, judged strictly inside the at-or-after-done window,
+// allows an external done write to stand (aligned with scripts/review_audit.py — do not drift):
+//  1. `user` actor in a canonical entry headline (plugin UI; Reminders sync) — a `· \`user\``
+//     string inside a continuation line is prose, not an actor
+//  2. Reminders completion marker text in the entry
+//  3. Chat-confirmation citation (FR-030a): a `user-confirm: session=<sid> msg=<id> quote="…"`
+//     line in the done entry or a chronologically-later entry. quote escapes: \" → ", \\ → \
+//     (backslash-anything else is taken literally); empty quotes do not match. The agent writes
+//     it after the user confirmed in chat (e.g. 「做」). The plugin trusts the FORMAT only; the
+//     Python audit verifies each citation against the Hermes session store — a fabricated or
+//     hallucinated citation alerts there. Trust but verify, 12h cadence.
 
 import { recordEntry } from '../log/executionLog';
 import { parseLogEntries } from '../model/agentProgress';
@@ -10,15 +22,45 @@ export const AUTO_ACTOR = 'hermes' as const;
 
 const USER_ACTOR = /·\s*`user`/;
 const TO_DONE = /\*\*[^*\n]*→done\*\*/;
+// FR-030a citation — full-line syntax, anchored (audit R1 closure): the citation must be a
+// standalone line; prefix/trailing junk on the same line is rejected on both sides.
+// Escaped-quote grammar: [^"\\\n] or backslash-escaped any-char, at least one.
+// Empty quote ("") intentionally does not match — it would substring-match anything.
+const USER_CONFIRM = /^[ \t]*user-confirm:\s*session=([\w.-]+)\s+msg=(\d+)\s+quote="((?:[^"\\\n]|\\.)+)"[ \t]*$/m;
+const REMINDERS_MARK = 'Reminders 里勾了完成';
+const GATED_EDGE = /\*\*done→review\*\*\s*·\s*`hermes`/;
+
+function headlineOf(entryText: string): string {
+  return entryText.split('\n')[0];
+}
 
 export function hasUserDoneConfirmation(body: string): boolean {
-  if (body.includes('Reminders 里勾了完成')) return true;
   const entries = parseLogEntries(body);
   const doneIndex = entries.findIndex((entry) => TO_DONE.test(entry.text));
-  if (doneIndex < 0) return false;
-  if (USER_ACTOR.test(entries[doneIndex].text)) return true;
-  // Logs are newest-first. A smaller index is chronologically later than the done edge.
-  return entries.slice(0, doneIndex).some((entry) => USER_ACTOR.test(entry.text));
+  if (doneIndex < 0) {
+    // No done edge in the log (e.g. Reminders sync set status directly): there is no edge to
+    // window against — judge over the whole log (legacy shape, kept for sync compatibility).
+    // Citations are NOT accepted here: they must anchor to a done edge, otherwise an old
+    // citation from a previous cycle could be reused (audit C2).
+    if (entries.some((entry) => USER_ACTOR.test(headlineOf(entry.text)))) return true;
+    return entries.some((entry) => entry.text.includes(REMINDERS_MARK));
+  }
+  // Logs are newest-first. The done entry itself and smaller indices are chronologically
+  // at/after the done edge. All channels are judged in this window only — markers that
+  // predate the done edge do not confirm it.
+  const atOrAfterDone = [entries[doneIndex], ...entries.slice(0, doneIndex)];
+  if (atOrAfterDone.some((entry) => USER_ACTOR.test(headlineOf(entry.text)))) return true;
+  if (atOrAfterDone.some((entry) => entry.text.includes(REMINDERS_MARK))) return true;
+  return atOrAfterDone.some((entry) => USER_CONFIRM.test(entry.text));
+}
+
+// Disarms re-gating only on the gate's own canonical entry (done→review by hermes carrying the
+// marker text). Prose quoting the sentence — even the full constant — must not disarm: the gate
+// entry has a structural shape prose cannot accidentally take.
+function hasGateMarker(body: string): boolean {
+  return parseLogEntries(body).some(
+    (entry) => GATED_EDGE.test(headlineOf(entry.text)) && entry.text.includes(REVIEW_GATE_TEXT),
+  );
 }
 
 export function shouldGuardExternalDone(previous: Status, task: Task, body: string): boolean {
@@ -26,7 +68,7 @@ export function shouldGuardExternalDone(previous: Status, task: Task, body: stri
     !TERMINAL_STATUSES.includes(previous) &&
     task.status === 'done' &&
     (task.assignee ?? '') !== 'user' &&
-    !body.includes('复核门禁') &&
+    !hasGateMarker(body) &&
     !hasUserDoneConfirmation(body)
   );
 }

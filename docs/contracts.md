@@ -115,3 +115,5 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区最前面�
 
 - `actor ∈ {hermes, cc, codex}` 时，状态机拒绝任何 `X → done`；agent 收尾只能写 `X → review`。
 - `review → done` 仅 `actor=user` 允许。插件本地 UI 默认以 user 身份调用；Reminders 勾选完成是独立的用户确认通道，可由同步器直接写 done。
+- 聊天确认引用通道（FR-030a）：外部写入 done 时，若执行记录含 `user-confirm: session=<sid> msg=<id> quote="…"`（在 done 条目内或时间上晚于 done 边的条目里），`hasUserDoneConfirmation` 视为已确认、不落门禁。插件只做格式判定；引用真伪由 `scripts/review_audit.py` 对 state.db 核验（role=user、session 吻合、quote 子串、时序、拒系统注入）。两侧正则（reviewGate.ts `USER_CONFIRM` 与 review_audit.py `USER_CONFIRM`）必须保持同源，勿漂移。
+- 审计判据（review_audit.py）与插件判据同源对齐：done 边上/之后的 `user` actor 条目、Reminders 标记、通过核验的引用，三者其一即算已复核；旧「正文含『复核』即洗白」启发式已移除。
