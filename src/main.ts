@@ -1,4 +1,5 @@
 import { FileSystemAdapter, Notice, Plugin, type Command, type WorkspaceLeaf } from 'obsidian';
+import { ApiLifecycle } from './api/lifecycle';
 import { ApiServer } from './api/server';
 import { ConfigService, DEFAULT_CONFIG, normalizeConfig, type Config } from './config';
 import type { Actor } from './model/types';
@@ -37,8 +38,9 @@ export default class TaskVaultPlugin extends Plugin {
   private store!: TaskStore;
   private config!: ConfigService;
   private actions!: TaskActions;
-  // FR-034: built-in localhost API. Null when disabled or after a failed bind.
-  private api: ApiServer | null = null;
+  // FR-034: built-in localhost API. The lifecycle serializes every start/stop so a fast settings
+  // toggle can never orphan a listener.
+  private apiLifecycle!: ApiLifecycle;
   private apiSource!: VaultSource;
   private apiHooks!: HookRunner;
   // FR-039: current UI language + translator. Views/commands read `this.t` live via a getter,
@@ -76,6 +78,10 @@ export default class TaskVaultPlugin extends Plugin {
     this.actions = new TaskActions(this.app, this.store, source, hooks, 'user', () => new Date(), getT);
     this.apiSource = source;
     this.apiHooks = hooks;
+    this.apiLifecycle = new ApiLifecycle(
+      () => this.makeApiServer(),
+      () => this.config.get().api_enabled,
+    );
 
     const onCapture = async (text: string, now: Date): Promise<void> => {
       const capture = parseCapture(text, now);
@@ -151,18 +157,18 @@ export default class TaskVaultPlugin extends Plugin {
   }
 
   onunload(): void {
-    void this.api?.close();
-    this.api = null;
+    void this.apiLifecycle.close();
   }
 
-  // Start/stop/restart the local API to match config (FR-034). Toggling off closes the server;
-  // a port change restarts it; a bind failure (e.g. EADDRINUSE) surfaces a Notice, never crashes.
-  private async reconcileApi(): Promise<void> {
-    await this.api?.close();
-    this.api = null;
-    const cfg = this.config.get();
-    if (!cfg.api_enabled) return;
-    const server = new ApiServer({
+  // Start/stop/restart the local API to match config (FR-034). Serialized through ApiLifecycle so a
+  // rapid toggle never orphans a listener; a bind failure (e.g. EADDRINUSE) surfaces a Notice via
+  // onError, never crashes.
+  private reconcileApi(): Promise<void> {
+    return this.apiLifecycle.reconcile();
+  }
+
+  private makeApiServer(): ApiServer {
+    return new ApiServer({
       port: () => this.config.get().api_port,
       tokens: () => this.config.get().agent_tokens,
       store: this.store,
@@ -170,10 +176,9 @@ export default class TaskVaultPlugin extends Plugin {
       actionsFor: (actor: Actor) =>
         new TaskActions(this.app, this.store, this.apiSource, this.apiHooks, actor, () => new Date(), () => this.t),
       now: () => new Date(),
-      onError: (err) => new Notice(this.t('api.portError', { port: cfg.api_port, err: String(err) })),
+      onError: (err) =>
+        new Notice(this.t('api.portError', { port: this.config.get().api_port, err: String(err) })),
     });
-    server.start();
-    this.api = server;
   }
 
   // Resolve the effective language from config + Obsidian's UI language and rebuild the translator.
