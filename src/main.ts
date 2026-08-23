@@ -121,10 +121,13 @@ export default class TaskVaultPlugin extends Plugin {
     }
   }
 
-  // Detail opens in a fresh center leaf (FR-035); project passed through view state.
+  // Detail opens in the center (FR-035); project passed through view state. Reuses any
+  // existing detail leaf (switching project updates it) instead of spawning one per click.
   private async openProjectDetail(project: string): Promise<void> {
-    const leaf = this.app.workspace.getLeaf(true);
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL)[0];
+    if (!leaf) leaf = workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL, active: true, state: { project } });
-    this.app.workspace.revealLeaf(leaf);
+    workspace.revealLeaf(leaf);
   }
 }
