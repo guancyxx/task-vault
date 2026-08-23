@@ -107,15 +107,35 @@
 .tv-status-blocked { --tv-rail: var(--color-red); }
 .tv-status-done    { --tv-rail: var(--color-green); }
 /* cancelled: grey diagonal stripe rail — distinct from flat grey inbox.
-   Scoped to the two real rail hosts (row, legend sample) so other tv-status-*
-   consumers (e.g. .tv-panel cards) never grow a stripe. */
+   Scoped to the real rail hosts so other tv-status-* consumers (e.g. .tv-panel cards) never grow a
+   stripe. Host list: sidebar row + legend sample (H2 ::before rail) plus the agenda timeline row and
+   calendar chip — those carry the rail as a border-left, so cancelled hands it to a ::before stripe
+   (a border can't paint a gradient). */
 .tv-row.tv-status-cancelled::before,
-.tv-legend-rail.tv-status-cancelled::before {
+.tv-legend-rail.tv-status-cancelled::before,
+.tv-tl-row.tv-status-cancelled::before,
+.tv-cal-chip.tv-status-cancelled::before {
   background: repeating-linear-gradient(
     45deg,
     var(--text-faint) 0 2px,
     transparent 2px 4px
   );
+}
+/* timeline row + chip: give cancelled a positioned ::before over the 3px left gutter and drop the
+   solid border so only the stripe shows. */
+.tv-tl-row.tv-status-cancelled,
+.tv-cal-chip.tv-status-cancelled {
+  position: relative;
+  border-left-color: transparent;
+}
+.tv-tl-row.tv-status-cancelled::before,
+.tv-cal-chip.tv-status-cancelled::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
 }
 
 .tv-rail {
@@ -683,4 +703,231 @@ button.tv-chip-btn:hover {
   font-weight: 700;
   font-size: var(--font-ui-medium);
   color: var(--text-normal);
+}
+
+/* ---------- H8 agenda panel + calendar (FR-036) ---------- */
+
+/* Agenda panel: today's timeline in the right sidebar. */
+.tv-agenda-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tv-agenda-title {
+  font-weight: 700;
+  font-size: var(--font-ui-medium);
+  letter-spacing: 0.02em;
+  color: var(--text-normal);
+}
+.tv-cal-open {
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+}
+.tv-cal-open:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.tv-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tv-timeline-label {
+  margin-top: 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Timeline row: fixed time column + fluid title column, status color bar on the left. */
+.tv-tl-row {
+  display: grid;
+  grid-template-columns: 3.4em 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--tv-rail, var(--text-faint));
+  background: var(--background-primary);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+}
+.tv-tl-row:hover {
+  background: var(--background-modifier-hover);
+}
+.tv-tl-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-ui-smaller);
+}
+.tv-tl-title {
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Overdue timeline row: red accent (reuses tv-overdue semantics), scoped so it doesn't inherit
+   the badge's full-red fill. */
+.tv-tl-row.tv-overdue {
+  border-left-color: var(--color-red);
+  background: rgba(255, 59, 48, 0.08);
+}
+.tv-tl-row.tv-overdue .tv-tl-time,
+.tv-tl-row.tv-overdue .tv-tl-title {
+  color: var(--color-red);
+  font-weight: 600;
+}
+.tv-tl-done .tv-tl-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+/* Calendar month grid in the center. */
+.tv-cal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tv-cal-nav {
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-medium);
+  line-height: 1;
+}
+.tv-cal-nav:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.tv-cal-title {
+  font-weight: 700;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+  min-width: 8em;
+}
+.tv-cal-today {
+  margin-left: auto;
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+}
+.tv-cal-today:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* Weekday header + day cells share the same equal-seven-column track. */
+.tv-cal-weekdays,
+.tv-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.tv-cal-weekdays {
+  margin-bottom: 4px;
+}
+.tv-cal-weekday {
+  padding: 4px 6px;
+  text-align: center;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+.tv-cal-grid {
+  gap: 1px;
+  background: var(--background-modifier-border);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tv-cal-cell {
+  min-height: 96px;
+  background: var(--background-primary);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+.tv-cal-cell:hover {
+  background: var(--background-modifier-hover);
+}
+.tv-cal-out {
+  background: var(--background-secondary);
+}
+.tv-cal-out .tv-cal-daynum {
+  color: var(--text-faint);
+}
+.tv-cal-daynum {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tv-cal-today .tv-cal-daynum {
+  align-self: flex-start;
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  border-radius: 50%;
+  width: 1.6em;
+  height: 1.6em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* Task chip: status color bar (--tv-rail) + priority badge + single-line title. */
+.tv-cal-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border-left: 3px solid var(--tv-rail, var(--text-faint));
+  background: var(--background-modifier-hover);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+  cursor: pointer;
+  overflow: hidden;
+}
+.tv-cal-chip:hover {
+  filter: brightness(1.08);
+}
+.tv-cal-chip-done {
+  opacity: 0.5;
+}
+.tv-cal-chip-done .tv-cal-chip-title {
+  text-decoration: line-through;
+}
+.tv-cal-pri {
+  flex: 0 0 auto;
+  font-size: 0.75em;
+  padding: 0 3px;
+  border-radius: 3px;
+}
+.tv-cal-chip-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-normal);
+}
+.tv-cal-more {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  padding-left: 4px;
 }

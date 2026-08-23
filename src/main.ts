@@ -10,11 +10,19 @@ import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
 import { COMMAND_ROWS, registerCommands } from './view/commands';
 import { openLegend } from './view/legend';
+import { AgendaVaultView, VIEW_TYPE_TASK_VAULT_AGENDA } from './view/agendaView';
+import { CalendarVaultView, VIEW_TYPE_TASK_VAULT_CALENDAR } from './view/calendarView';
 import { ProjectDetailView, VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL } from './view/projectDetailView';
 import { ProjectVaultView, VIEW_TYPE_TASK_VAULT_PROJECTS } from './view/projectsView';
 import { TaskVaultView, VIEW_TYPE_TASK_VAULT } from './view/sidebarView';
 
-export { VIEW_TYPE_TASK_VAULT, VIEW_TYPE_TASK_VAULT_PROJECTS, VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL };
+export {
+  VIEW_TYPE_TASK_VAULT,
+  VIEW_TYPE_TASK_VAULT_PROJECTS,
+  VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL,
+  VIEW_TYPE_TASK_VAULT_AGENDA,
+  VIEW_TYPE_TASK_VAULT_CALENDAR,
+};
 
 // `.taskvault/` sits at the vault root; shared with the Python syncer (contract §1).
 function taskvaultDir(plugin: Plugin): string {
@@ -70,7 +78,7 @@ export default class TaskVaultPlugin extends Plugin {
       VIEW_TYPE_TASK_VAULT,
       (leaf) =>
         new TaskVaultView(leaf, this.store, onCapture, this.actions, () => new Date(), () =>
-          void this.activateProjectsView(), getT,
+          void this.activateProjectsView(), getT, () => void this.activateAgendaView(),
         ),
     );
 
@@ -78,12 +86,32 @@ export default class TaskVaultPlugin extends Plugin {
     // button re-reveals the panel.
     this.registerView(
       VIEW_TYPE_TASK_VAULT_PROJECTS,
-      (leaf) => new ProjectVaultView(leaf, this.store, (project) => this.openProjectDetail(project), getT),
+      (leaf) =>
+        new ProjectVaultView(leaf, this.store, (project) => this.openProjectDetail(project), getT, () => new Date(), () =>
+          void this.activateAgendaView(),
+        ),
     );
     this.registerView(
       VIEW_TYPE_TASK_VAULT_PROJECT_DETAIL,
       (leaf) =>
         new ProjectDetailView(leaf, this.store, this.actions, () => void this.activateProjectsView(), getT),
+    );
+
+    // FR-036 日程面板 (右侧栏) + 日历月视图 (中间区). Agenda's 完整日历 button opens the calendar.
+    this.registerView(
+      VIEW_TYPE_TASK_VAULT_AGENDA,
+      (leaf) =>
+        new AgendaVaultView(leaf, this.store, () => void this.openCalendar(), getT, () => new Date(),
+          () => this.lang, () => void this.activateView(), () => void this.activateProjectsView(),
+        ),
+    );
+    this.registerView(
+      VIEW_TYPE_TASK_VAULT_CALENDAR,
+      (leaf) =>
+        new CalendarVaultView(leaf, this.store, getT, () => new Date(), () => this.lang,
+          () => void this.activateView(), () => void this.activateProjectsView(),
+          () => void this.activateAgendaView(),
+        ),
     );
 
     for (const ref of wireVaultEvents(this.app, this.store)) this.registerEvent(ref);
@@ -99,6 +127,7 @@ export default class TaskVaultPlugin extends Plugin {
     this.commands = [
       this.addCommand({ id: 'open', name: this.t('cmd.open'), callback: () => void this.activateView() }),
       this.addCommand({ id: 'open-projects', name: this.t('cmd.openProjects'), callback: () => void this.activateProjectsView() }),
+      this.addCommand({ id: 'open-agenda', name: this.t('cmd.openAgenda'), callback: () => void this.activateAgendaView() }),
       this.addCommand({ id: 'legend', name: this.t('cmd.legend'), callback: () => openLegend(this.app, this.t) }),
       // FR-032 / SC-013: the six task commands, each gated on the active file being an indexed
       // task, with default Mod+Shift L/D/C/K/S/A hotkeys.
@@ -132,6 +161,7 @@ export default class TaskVaultPlugin extends Plugin {
     const nameKeyById: Record<string, Parameters<T>[0]> = {
       open: 'cmd.open',
       'open-projects': 'cmd.openProjects',
+      'open-agenda': 'cmd.openAgenda',
       legend: 'cmd.legend',
     };
     for (const row of COMMAND_ROWS) nameKeyById[row.id] = row.nameKey;
@@ -171,6 +201,30 @@ export default class TaskVaultPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT_PROJECTS, active: true });
       workspace.revealLeaf(leaf);
     }
+  }
+
+  // Agenda panel lives beside the cockpit in the right sidebar (FR-036).
+  private async activateAgendaView(): Promise<void> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT_AGENDA);
+    if (existing.length > 0) {
+      workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf: WorkspaceLeaf | null = workspace.getRightLeaf(false);
+    if (leaf) {
+      await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT_AGENDA, active: true });
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  // Full month calendar opens in the center (FR-036), reusing any existing calendar leaf.
+  private async openCalendar(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT_CALENDAR)[0];
+    if (!leaf) leaf = workspace.getLeaf(true);
+    await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT_CALENDAR, active: true });
+    workspace.revealLeaf(leaf);
   }
 
   // Detail opens in the center (FR-035); project passed through view state. Reuses any

@@ -47,6 +47,7 @@ export class TaskVaultView extends ItemView {
     private now: () => Date = () => new Date(),
     private onOpenProjects?: () => void,
     private getT: () => T = () => DEFAULT_T,
+    private onOpenAgenda?: () => void,
   ) {
     super(leaf);
   }
@@ -79,10 +80,16 @@ export class TaskVaultView extends ItemView {
     root.addClass('tv-cockpit');
     // Header link to the projects panel (FR-035). One row above capture; leaves the five
     // sections untouched. Absent when no handler is wired (e.g. read-only tests).
-    if (this.onOpenProjects) {
+    if (this.onOpenProjects || this.onOpenAgenda) {
       const bar = root.createDiv({ cls: 'tv-cockpit-header' });
-      const link = bar.createSpan({ cls: 'tv-projects-link', text: t('sidebar.projects') });
-      link.addEventListener('click', () => this.onOpenProjects!());
+      if (this.onOpenProjects) {
+        const link = bar.createSpan({ cls: 'tv-projects-link', text: t('sidebar.projects') });
+        link.addEventListener('click', () => this.onOpenProjects!());
+      }
+      if (this.onOpenAgenda) {
+        const link = bar.createSpan({ cls: 'tv-projects-link', text: t('sidebar.agenda') });
+        link.addEventListener('click', () => this.onOpenAgenda!());
+      }
     }
     this.renderCaptureBox(root);
     const grouped = this.store.bucketed(this.now());
