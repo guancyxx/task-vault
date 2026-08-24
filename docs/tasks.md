@@ -330,6 +330,6 @@
 | H12 | UI 本地化 i18n（字典层 + 设置页语言下拉 + 全文案覆盖） | M | unit+manual | FR-039 | ✅ 2026-08-23（PR #19，实机 zh/en 双向验证）|
 | H13 | 新建任务/新建项目命令（创建类命令 + 项目脚手架 + 路径配置） | M | unit+manual | FR-040/041 | ✅ 2026-08-24（PR #25）|
 | H14 | README 任务管理思路章（双语 The workflow + SC-019 九→十） | S | — | FR-042 | ✅ 2026-08-24（PR #26，Codex 审计 APPROVE，npm test 429 绿 + 双语结构脚本核对）|
-| H15 | 规范文档补齐 vault 版两节（承重前缀坑 + FR-030a 引用通道） | S | — | FR-017/FR-030a | ⏳ |
+| H15 | 规范文档补齐 vault 版两节（承重前缀坑 + FR-030a 引用通道） | S | — | FR-017/FR-030a | ✅ 2026-08-24（PR #27，Codex 审计 APPROVE，npm test 442 绿；vault 母本 Nit-1 已同步修）|
 
 技术依赖（非需求顺序）：H2/H3/H4/H5/H9 相互独立可并行（H3/H4/H9 都动 README，按合并序串行 rebase）；H6 依赖 H5 的 SKILL.md 草案定接口语义；H7 依赖 H2 的 STATUS_META 色条语义（chip 复用）；H8 依赖 H7 的 ItemView 骨架模式；H10 最后，前置 = 全部合并 + 部署 vault 稳定（含手动验证清单通过）+ Calendar 删除由用户确认执行。
