@@ -26,8 +26,17 @@ export const zh: Record<keyof typeof en, string> = {
   'sidebar.empty': '—',
   'sidebar.uncategorized': '未分类',
   'capture.placeholder': '捕获任务…  !high @project #tag 明天下午3点',
+  // FR-045 语法教学：换行分隔的示例，placeholder 每次 render 轮换一条（tArray 拆分）。
+  'capture.examples': [
+    '!high @project 明天3点 #watch',
+    '周五 14:00 交周报',
+    '#bug 修复登录超时 @magicedit',
+    '8月25号 #life 续签证',
+  ].join('\n'),
   'capture.emptyTitle': '任务标题为空',
   'capture.failed': '捕获失败：{err}',
+  'command.captureTask': '捕获任务（侧边栏）',
+  'command.captureNoView': '侧边栏未开，无法聚焦捕获框',
 
   'badge.countdown': '剩 {time}',
   'badge.overdue': '超期 {time}',

@@ -11,7 +11,7 @@ import { TaskActions } from './store/taskActions';
 import { TaskStore } from './store/taskStore';
 import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
-import { COMMAND_ROWS, registerCommands } from './view/commands';
+import { CAPTURE_COMMAND_ROW, COMMAND_ROWS, registerCommands } from './view/commands';
 import { NewProjectModal, NewTaskModal, CREATE_COMMAND_ROWS } from './view/newProjectModal';
 import { openLegend } from './view/legend';
 import { AgendaVaultView, VIEW_TYPE_TASK_VAULT_AGENDA } from './view/agendaView';
@@ -148,6 +148,13 @@ export default class TaskVaultPlugin extends Plugin {
     // language switch, applyLanguage() rewrites every .name (the palette re-reads it on open).
     this.commands = [
       this.addCommand({ id: 'open', name: this.t('cmd.open'), callback: () => void this.activateView() }),
+      // FR-045: activate the sidebar and focus+select the capture box. Ungated plain callback.
+      this.addCommand({
+        id: CAPTURE_COMMAND_ROW.id,
+        name: this.t(CAPTURE_COMMAND_ROW.nameKey),
+        hotkeys: [{ modifiers: ['Mod', 'Shift'], key: CAPTURE_COMMAND_ROW.key }],
+        callback: () => void this.activateCaptureView(),
+      }),
       this.addCommand({ id: 'open-projects', name: this.t('cmd.openProjects'), callback: () => void this.activateProjectsView() }),
       this.addCommand({ id: 'open-agenda', name: this.t('cmd.openAgenda'), callback: () => void this.activateAgendaView() }),
       this.addCommand({ id: 'legend', name: this.t('cmd.legend'), callback: () => openLegend(this.app, this.t) }),
@@ -246,6 +253,7 @@ export default class TaskVaultPlugin extends Plugin {
       'new-task': 'cmd.newTask',
       'new-project': 'cmd.newProject',
     };
+    nameKeyById[CAPTURE_COMMAND_ROW.id] = CAPTURE_COMMAND_ROW.nameKey;
     for (const row of COMMAND_ROWS) nameKeyById[row.id] = row.nameKey;
     for (const cmd of this.commands) {
       const key = nameKeyById[cmd.id];
@@ -268,6 +276,23 @@ export default class TaskVaultPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT, active: true });
       workspace.revealLeaf(leaf);
     }
+  }
+
+  // FR-045: open/reveal the sidebar, then focus + select its capture box. activateView opens the
+  // leaf when absent, so the input is present by the time we query for it (rAF lets the render land).
+  private async activateCaptureView(): Promise<void> {
+    await this.activateView();
+    const focus = (): void => {
+      const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT)[0];
+      const input = leaf?.view.containerEl.querySelector('input.tv-capture') as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+        input.select();
+      } else {
+        new Notice(this.t('command.captureNoView'));
+      }
+    };
+    window.requestAnimationFrame(focus);
   }
 
   // Projects panel lives beside the cockpit in the right sidebar.

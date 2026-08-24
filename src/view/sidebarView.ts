@@ -7,7 +7,7 @@ import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Bucket } from '../time/timeRules';
-import { createT, type MessageKey, type T } from '../i18n';
+import { createT, tArray, type MessageKey, type T } from '../i18n';
 import { agentProgress } from '../model/agentProgress';
 import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
@@ -66,6 +66,10 @@ export class TaskVaultView extends ItemView {
 
   protected async onOpen(): Promise<void> {
     this.unsubscribe = this.store.onChange(() => this.render());
+    // FR-044 heartbeat: re-render every 60s so countdown/overdue badges advance with wall-clock
+    // time even when the store is quiet. registerInterval auto-clears on view close; render()
+    // preserves collapse state, so nothing folds/unfolds under the user.
+    this.registerInterval(window.setInterval(() => this.render(), 60_000));
     this.render();
   }
 
@@ -102,7 +106,9 @@ export class TaskVaultView extends ItemView {
       const header = section.createDiv({ cls: 'tv-section-header' });
       header.createSpan({ cls: 'tv-fold', text: folded ? '▸' : '▾' });
       header.createSpan({ cls: 'tv-section-title', text: t(labelKey) });
-      header.createSpan({ cls: 'tv-count', text: String(entries.length) });
+      // FR-047: count is a "which bucket is burning" scan signal, not decoration. Colour the badge
+      // by bucket when non-zero — overdue red, review purple, today accent; week/done + 0 stay grey.
+      header.createSpan({ cls: countClass(bucket, entries.length), text: String(entries.length) });
       header.addEventListener('click', () => {
         if (folded) this.collapsed.delete(bucket);
         else this.collapsed.add(bucket);
@@ -202,9 +208,12 @@ export class TaskVaultView extends ItemView {
   private renderCaptureBox(root: HTMLElement): void {
     if (!this.onCapture) return;
     const t = this.getT();
+    // FR-045: rotate the placeholder through the syntax examples so the capture box teaches the
+    // grammar. Falls back to the single fixed placeholder if the examples list is somehow empty.
+    const placeholder = pickExample(tArray(t, 'capture.examples'), Math.random) || t('capture.placeholder');
     const input = root.createEl('input', {
       cls: 'tv-capture',
-      attr: { type: 'text', placeholder: t('capture.placeholder') },
+      attr: { type: 'text', placeholder },
     });
     input.addEventListener('keydown', (evt: KeyboardEvent) => {
       if (evt.key !== 'Enter' || evt.isComposing) return; // let IME composition finish
@@ -220,6 +229,25 @@ export class TaskVaultView extends ItemView {
   }
 }
 
+
+// FR-047: bucket-coloured count badge classes. Grey (bare tv-count) for week/done or a zero count;
+// a semantic overlay for overdue/review/today when they carry anything. Pure — unit-tested.
+const COUNT_ALERT_CLASS: Partial<Record<Bucket, string>> = {
+  overdue: 'tv-count-alert',
+  review: 'tv-count-review',
+  today: 'tv-count-today',
+};
+export function countClass(bucket: Bucket, count: number): string[] {
+  const extra = count > 0 ? COUNT_ALERT_CLASS[bucket] : undefined;
+  return extra ? ['tv-count', extra] : ['tv-count'];
+}
+
+// FR-045: pick one placeholder example. `rng` is injected (Math.random in prod) so the rotation
+// unit-tests deterministically; an empty list yields '' (caller falls back to the fixed string).
+export function pickExample(xs: readonly string[], rng: () => number): string {
+  if (xs.length === 0) return '';
+  return xs[Math.floor(rng() * xs.length)];
+}
 
 // Root-row count per project within a bucket (for the divider's count badge). `uncat` is the
 // localized fallback label — passed in so it matches the render loop's grouping key exactly.

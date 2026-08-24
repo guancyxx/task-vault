@@ -26,6 +26,15 @@ export function resolveLang(setting: Lang, obsidianLocale: string): ResolvedLang
   return obsidianLocale.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 }
 
+// Array-valued strings (FR-045): a few keys (e.g. capture.examples) store a list newline-joined in
+// the flat dict — this splits it back, dropping blank lines. Pure so it unit-tests without a DOM.
+export function tArray(t: T, key: MessageKey): string[] {
+  return t(key)
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 // Build a bound translator. `{name}` tokens in the string are replaced from params; an unknown
 // key returns the key itself (loud but non-throwing — a missing string never breaks the UI).
 export function createT(lang: ResolvedLang): T {

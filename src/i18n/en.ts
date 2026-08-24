@@ -30,8 +30,17 @@ export const en = {
   'sidebar.empty': '—',
   'sidebar.uncategorized': 'Uncategorized',
   'capture.placeholder': 'Capture a task…  !high @project #tag tomorrow 3pm',
+  // FR-045 syntax teaching: newline-joined examples; the placeholder rotates one per render.
+  'capture.examples': [
+    '!high @project tomorrow 3pm #watch',
+    'Fri 14:00 send weekly report',
+    '#bug fix login timeout @magicedit',
+    'Aug 25 #life renew visa',
+  ].join('\n'),
   'capture.emptyTitle': 'Task title is empty',
   'capture.failed': 'Capture failed: {err}',
+  'command.captureTask': 'Capture task (sidebar)',
+  'command.captureNoView': 'Sidebar is not open — cannot focus the capture box',
 
   // Time badges (countdown / overdue). {time} is the language-neutral duration (e.g. 3h12m, 2d).
   'badge.countdown': '{time} left',

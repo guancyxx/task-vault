@@ -1,7 +1,8 @@
-// Task row rendering + inline interaction (FR-011, FR-013). Layout: pinned left rail
-// (fold + completion checkbox) + fluid column — line 1: tag chips (priority p0-p3 first),
-// then the full multi-line title, then the right-aligned dates row. Status glyph removed
-// (2026-08-19): status reads from the left color rail; changes via the right-click popover.
+// Task row rendering + inline interaction (FR-011, FR-013). Layout (FR-046 row de-noise): pinned
+// left rail (fold + completion checkbox) + fluid column — line 1: title + resident triage signals
+// (p0, time badge, agent phase, assignee, waiting/blocked); a dates row for sub-task progress; and
+// a hover layer holding the organizational chips (p1-p3, #tag, repo/*, project, area, start).
+// Status glyph removed (2026-08-19): status reads from the left color rail; changes via the popover.
 // Left click opens the task document; right click (contextmenu) opens the detail popover.
 
 import { STATUSES, TERMINAL_STATUSES, type Status, type Task } from '../model/types';
@@ -92,6 +93,18 @@ export const PRIORITY_TAG: Record<string, string> = {
 };
 export const P3_TAG = 'p3'; // no priority set
 
+// Priority chip placement (FR-046): p0 (high) is a resident triage signal on the title row; the
+// weaker p1/p2/p3 drop to the hover layer. Pure — the single source the render reads, so the
+// "p1–p3 never resident" contract is unit-testable without a DOM.
+export interface PriorityChip {
+  tag: string;
+  resident: boolean;
+}
+export function priorityChip(task: Pick<Task, 'priority'>): PriorityChip {
+  const tag = task.priority ? PRIORITY_TAG[task.priority] : P3_TAG;
+  return { tag, resident: tag === 'p0' };
+}
+
 // Inline actions the row triggers. The sidebar view supplies concrete handlers (TaskActions +
 // popovers). Absent (read-only) rows simply render without listeners.
 export interface RowActions {
@@ -168,29 +181,36 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
     if (box.checked) a?.complete(task);
   });
 
-  // Column order (user request 2026-08-19): tags → title → dates(right-aligned).
+  // Column (FR-046 row de-noise): title row (title + resident triage signals) → dates row
+  // (sub-task progress only) → hover layer (organizational chips, revealed on hover).
   const col = row.createDiv({ cls: 'tv-col' });
 
-  // Row 1 (top): tags — priority (p0-p3) first, then free/repo/project/area/delegate chips.
-  const tags = col.createDiv({ cls: 'tv-tags' });
-  const pt = task.priority ? PRIORITY_TAG[task.priority] : undefined;
-  tags.createSpan({ cls: `tv-tag tv-pri tv-pri-${pt ?? P3_TAG}`, text: pt ?? P3_TAG });
-  for (const t of task.tags ?? []) {
-    if (t.startsWith('repo/')) {
-      tags.createSpan({ cls: 'tv-tag tv-tag-repo', text: t.slice('repo/'.length) });
-    } else {
-      tags.createSpan({ cls: 'tv-tag', text: `#${t}` });
-    }
+  // Title row (resident): title takes the lead position, then the triage signals that decide
+  // "act now?" — p0, time badge, agent phase, assignee, waiting/blocked. Chips wrap under the
+  // title when they don't fit (no forced single line).
+  const titleRow = col.createDiv({ cls: 'tv-title-row' });
+  titleRow.createSpan({ cls: 'tv-title', text: task.title });
+
+  const pri = priorityChip(task);
+  if (pri.resident) {
+    titleRow.createSpan({ cls: `tv-tag tv-pri tv-pri-${pri.tag}`, text: pri.tag });
   }
-  if (task.project) {
-    tags.createSpan({ cls: 'tv-tag tv-tag-project', text: stripLink(task.project) });
+
+  // Time badge (due/countdown/overdue) is a resident signal; still click-to-reschedule.
+  const badge = countdownLabel(task, ctx.now, t);
+  let chip: HTMLElement | null = null;
+  if (badge) {
+    chip = titleRow.createSpan({ cls: ['tv-badge', badge.overdue ? 'tv-overdue' : 'tv-countdown'], text: badge.text });
+  } else if (task.due) {
+    chip = titleRow.createSpan({ cls: ['tv-badge', 'tv-date'], text: dueChip(task.due) });
   }
-  if (task.area) {
-    tags.createSpan({ cls: 'tv-tag tv-tag-area', text: stripLink(task.area) });
+  if (chip && a) {
+    chip.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      a.reschedule(task);
+    });
   }
-  if (task.assignee && task.assignee !== 'user') {
-    tags.createSpan({ cls: 'tv-tag tv-delegate', text: `${DELEGATE_GLYPH} ${task.assignee}` });
-  }
+
   if (ctx.agentPhase) {
     const { phase, lastActivity } = ctx.agentPhase;
     let text = t(AGENT_PHASE_KEY[phase]);
@@ -200,40 +220,47 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
       text += ` ·${hours}h`;
       stale = hours > 4;
     }
-    const chip = tags.createSpan({ cls: `tv-tag tv-agentphase-${phase}`, text });
-    chip.toggleClass('tv-stale', stale);
+    const phaseChip = titleRow.createSpan({ cls: `tv-tag tv-agentphase-${phase}`, text });
+    phaseChip.toggleClass('tv-stale', stale);
+  }
+  if (task.assignee && task.assignee !== 'user') {
+    titleRow.createSpan({ cls: 'tv-tag tv-delegate', text: `${DELEGATE_GLYPH} ${task.assignee}` });
   }
   if (ctx.effectiveStatus === 'waiting') {
-    tags.createSpan({ cls: 'tv-tag tv-tag-waiting', text: t('row.waiting') });
+    titleRow.createSpan({ cls: 'tv-tag tv-tag-waiting', text: t('row.waiting') });
   }
   if (blocked) {
     const names = ctx.blockSources.map((s) => s.title).join('、');
-    tags.createSpan({ cls: 'tv-tag tv-block-src', text: t('row.blocked'), attr: { title: t('row.blockSource', { names }) } });
+    titleRow.createSpan({ cls: 'tv-tag tv-block-src', text: t('row.blocked'), attr: { title: t('row.blockSource', { names }) } });
   }
 
-  // Row 2: full multi-line title.
-  col.createSpan({ cls: 'tv-title', text: task.title });
-
-  // Row 3 (bottom, right-aligned): dates — due/countdown chip, start, sub-task progress.
-  const dates = col.createDiv({ cls: 'tv-dates' });
-  const badge = countdownLabel(task, ctx.now, t);
-  let chip: HTMLElement | null = null;
-  if (badge) {
-    chip = dates.createSpan({ cls: ['tv-badge', badge.overdue ? 'tv-overdue' : 'tv-countdown'], text: badge.text });
-  } else if (task.due) {
-    chip = dates.createSpan({ cls: ['tv-badge', 'tv-date'], text: dueChip(task.due) });
+  // Dates row (resident): sub-task progress only — start badge moved to the hover layer.
+  if (ctx.child) {
+    const dates = col.createDiv({ cls: 'tv-dates' });
+    dates.createSpan({ cls: 'tv-progress', text: `${ctx.child.done}/${ctx.child.count}` });
   }
-  if (chip && a) {
-    chip.addEventListener('click', (evt) => {
-      evt.stopPropagation();
-      a.reschedule(task);
-    });
+
+  // Hover layer (FR-046): organizational chips — p1/p2/p3, #tag, repo/*, project, area, start.
+  // CSS reveals it on row hover (opacity 0→1) and keeps it out of the resident layout (height:0).
+  const hover = col.createDiv({ cls: 'tv-hover-chips' });
+  if (!pri.resident) {
+    hover.createSpan({ cls: `tv-tag tv-pri tv-pri-${pri.tag}`, text: pri.tag });
+  }
+  for (const tag of task.tags ?? []) {
+    if (tag.startsWith('repo/')) {
+      hover.createSpan({ cls: 'tv-tag tv-tag-repo', text: tag.slice('repo/'.length) });
+    } else {
+      hover.createSpan({ cls: 'tv-tag', text: `#${tag}` });
+    }
+  }
+  if (task.project) {
+    hover.createSpan({ cls: 'tv-tag tv-tag-project', text: stripLink(task.project) });
+  }
+  if (task.area) {
+    hover.createSpan({ cls: 'tv-tag tv-tag-area', text: stripLink(task.area) });
   }
   if (task.start) {
-    dates.createSpan({ cls: 'tv-badge tv-start', text: `🛫 ${dueChip(task.start)}` });
-  }
-  if (ctx.child) {
-    dates.createSpan({ cls: 'tv-progress', text: `${ctx.child.done}/${ctx.child.count}` });
+    hover.createSpan({ cls: 'tv-badge tv-start', text: `🛫 ${dueChip(task.start)}` });
   }
   return row;
 }

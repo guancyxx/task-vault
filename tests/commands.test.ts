@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createT } from '../src/i18n';
 import { TRANSITIONS } from '../src/model/statusMachine';
 import { STATUSES, type Status } from '../src/model/types';
-import { COMMAND_ROWS, commandGate } from '../src/view/commands';
+import { CAPTURE_COMMAND_ROW, COMMAND_ROWS, commandGate } from '../src/view/commands';
+import { CREATE_COMMAND_ROWS } from '../src/view/newProjectModal';
 import { STATUS_LABEL, STATUS_META, statusTargets } from '../src/view/taskRow';
 
 // The 设置状态 command's target list (FR-032): derived from the legal-transition table, decorated
@@ -47,6 +48,17 @@ describe('command registry (FR-032 六命令)', () => {
     // name is now a dictionary key (FR-039): assert it resolves to a non-empty display string.
     const t = createT('zh-CN');
     for (const row of COMMAND_ROWS) expect(t(row.nameKey).length).toBeGreaterThan(0);
+  });
+
+  it('capture-task (FR-045) is ungated: id + Mod+Shift+I hotkey, name resolves, letter is unique', () => {
+    expect(CAPTURE_COMMAND_ROW.id).toBe('capture-task');
+    expect(CAPTURE_COMMAND_ROW.key).toBe('I');
+    for (const lang of ['zh-CN', 'en'] as const) {
+      expect(createT(lang)(CAPTURE_COMMAND_ROW.nameKey).length).toBeGreaterThan(0);
+    }
+    // no letter clash with the six gated (L/D/C/K/S/A) or two create (M/J) commands
+    const letters = [...COMMAND_ROWS, ...CREATE_COMMAND_ROWS].map((r) => r.key);
+    expect(letters).not.toContain(CAPTURE_COMMAND_ROW.key);
   });
 
   it('gate passes only indexed task paths (grey-out otherwise)', () => {
