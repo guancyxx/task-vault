@@ -216,6 +216,9 @@ export class TaskVaultView extends ItemView {
       reschedule: (task) => openReschedule(this.app, task.due, (due) => void actions.reschedule(path, due), this.getT()),
       openDetail: (_task, evt) => openDetailAt(this.app, this.store, actions, path, evt, this.getT()),
       openDoc: (_task, p) => void this.app.workspace.openLinkText(p, '', false),
+      // FR-049: the canonical setStatus seam — actor=user (TaskActions default), log entry
+      // and frontmatter persistence handled inside the seam.
+      reviewDecision: (_task, to) => void actions.setStatus(path, to),
     };
   }
 
