@@ -119,7 +119,7 @@ export class NewTaskModal extends Modal {
     dueInput.addEventListener('input', refreshPreview);
 
     // Audit R2: an explicit submit button — the priority <select> has no Enter-to-submit, and
-    // mouse users need a visible confirm; Enter on the text inputs still submits.
+    // mouse users need a visible confirm.
     const submitBtn = contentEl.createEl('button', {
       cls: 'tv-form-submit',
       text: t('form.submit'),
@@ -129,13 +129,28 @@ export class NewTaskModal extends Modal {
       if (evt.key === 'Enter' && !evt.isComposing) void this.submit();
     });
 
-    // Enter on any field submits (IME-safe); Esc cancels (Modal default).
-    for (const el of [titleInput, projectInput, dueInput]) {
-      el.addEventListener('keydown', (evt: KeyboardEvent) => {
-        if (evt.key !== 'Enter' || evt.isComposing) return;
+    // Enter flow (live-feedback fix 2026-08-24): title/project Enter ADVANCES to the next
+    // field instead of submitting — with submit-on-first-Enter, typing a title and reflexively
+    // hitting Enter created the task immediately, skipping project/priority/due entirely
+    // (reported as "Cmd+Shift+N still creates the file directly"). Only the LAST field (due),
+    // the priority select, or the 创建 button submits. Shift+Enter on any field submits early.
+    const advance = (evt: KeyboardEvent, target: HTMLElement): void => {
+      if (evt.key !== 'Enter' || evt.isComposing) return;
+      if (evt.shiftKey) {
         void this.submit();
-      });
-    }
+        return;
+      }
+      evt.preventDefault();
+      target.focus();
+    };
+    titleInput.addEventListener('keydown', (evt) => advance(evt, projectInput));
+    projectInput.addEventListener('keydown', (evt) => advance(evt, prioSelect));
+    dueInput.addEventListener('keydown', (evt: KeyboardEvent) => {
+      if (evt.key === 'Enter' && !evt.isComposing && !evt.shiftKey) {
+        evt.preventDefault();
+        void this.submit();
+      }
+    });
     titleInput.focus();
   }
 
