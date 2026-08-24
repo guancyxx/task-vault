@@ -177,7 +177,7 @@ export function parseTaskFile(raw: string, filePath: string): ParseResult {
   };
   for (const k of [
     'start', 'due', 'remind', 'started', 'completed', 'priority',
-    'source', 'assignee', 'dispatched', 'project', 'area', 'parent',
+    'source', 'assignee', 'dispatched', 'session', 'project', 'area', 'parent',
   ] as (keyof Task)[]) {
     assign(k);
   }
