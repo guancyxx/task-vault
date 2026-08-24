@@ -23,7 +23,7 @@ vault/.taskvault/
 }
 ```
 
-- hook 命令执行时：占位符文本替换 + 同时设置环境变量 `TV_TASK_PATH/TV_TASK_ID/TV_TASK_STATUS/TV_TASK_TITLE/TV_TASK_ASSIGNEE`（TS 与 Python 两侧都必须支持两种传参）。
+- hook 命令执行时：占位符文本替换 + 同时设置环境变量 `TV_TASK_PATH/TV_TASK_ID/TV_TASK_STATUS/TV_TASK_TITLE/TV_TASK_ASSIGNEE/TV_TASK_SESSION`（TS 与 Python 两侧都必须支持两种传参）。`{TASK_SESSION}` 取 frontmatter 可选 `session:`（FR-048 委派会话锚点）：hook/运维侧维护，插件 UI 与 agent 协议禁手写（类比 `dispatched` 禁令）；无值替换为空串。
 - 配置只由插件设置 UI 写；Python 侧只读。
 
 ## 3. ledger.json
