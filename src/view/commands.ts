@@ -94,6 +94,8 @@ class DelegateModal extends Modal {
     private title: string,
     private t: T,
     private assignee?: string,
+    // FR-048: already-dispatched task → the panel shows the resume badge + follow-up seed.
+    private dispatched = false,
   ) {
     super(app);
   }
@@ -108,6 +110,7 @@ class DelegateModal extends Modal {
     renderDelegatePanel(body, t, {
       assignee: this.assignee,
       instruction: this.instruction,
+      dispatched: this.dispatched,
       onInstructionChange: (v) => {
         this.instruction = v;
       },
@@ -132,7 +135,7 @@ function openDelegate(app: App, store: TaskStore, actions: TaskActions, path: st
     new Notice(t('cmd.notIndexed'));
     return;
   }
-  new DelegateModal(app, actions, path, entry.task.title, t, entry.task.assignee).open();
+  new DelegateModal(app, actions, path, entry.task.title, t, entry.task.assignee, Boolean(entry.task.dispatched)).open();
 }
 
 // Register all six commands. Each shares one checkCallback gate: enabled only when the active

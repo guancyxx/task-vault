@@ -88,6 +88,8 @@ export const zh: Record<keyof typeof en, string> = {
   'detail.copiedLink': '已复制 obsidian:// 链接',
 
   'delegate.placeholder': '给 agent 的指令（全文写入「## 委派」）',
+  // FR-048：任务已派发过时显示——本次委派将续接既有会话（追加轮次）。
+  'delegate.resumeBadge': '🔁 续接会话 — 已派发过，本次为追加轮次',
   'delegate.btn': '委派',
   'delegate.emptyInstruction': '请填写委派指令',
   'delegate.fired': '已委派给 {assignee}',

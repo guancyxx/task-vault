@@ -150,6 +150,7 @@ class DetailModal extends Modal {
     renderDelegatePanel(body, t, {
       assignee: this.task.assignee,
       instruction: this.instruction,
+      dispatched: Boolean(this.task.dispatched),
       onInstructionChange: (v) => {
         this.instruction = v;
       },

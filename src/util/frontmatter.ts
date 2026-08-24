@@ -224,6 +224,63 @@ export function upsertSection(body: string, heading: string, content: string): s
   return `${body}${sep}${heading}\n${content}\n`;
 }
 
+// ---------- delegation rounds (FR-048) ----------
+
+// Round header format: `### 第N轮 YYYY-MM-DD`. The regex is the parse contract — rounds are
+// appended newest-first, so the next round number is max(existing) + 1 (tolerates gaps/legacy
+// bodies with no rounds yet: an un-roundified legacy instruction becomes round 1's tail).
+// NOTE: no \b after 轮 — CJK chars are non-word chars to JS regex, so \b never matches there.
+const ROUND_RE = /^###\s*第(\d+)轮(?=\s|$)/;
+
+export function parseRoundHeads(body: string, heading: string): Array<{ n: number; line: number }> {
+  const bounds = sectionBounds(body, heading);
+  if (!bounds) return [];
+  const lines = body.split('\n');
+  const heads: Array<{ n: number; line: number }> = [];
+  for (let i = bounds.start + 1; i < bounds.end; i++) {
+    const m = ROUND_RE.exec(lines[i]);
+    if (m) heads.push({ n: Number(m[1]), line: i });
+  }
+  return heads;
+}
+
+// Pure stateless round-append (FR-048): the `## 委派` section is NOT whole-replaced — the new
+// instruction becomes the newest round at the top and prior rounds are preserved verbatim.
+// Round layout (newest first, one blank line between rounds):
+//
+//   ## 委派
+//   ### 第2轮 2026-08-25
+//   <new instruction>
+//
+//   ### 第1轮 2026-08-24
+//   <previous content — or a legacy un-roundified instruction>
+export function appendDelegationRound(
+  body: string,
+  heading: string,
+  instruction: string,
+  date: Date,
+): string {
+  const text = instruction.trim();
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const heads = parseRoundHeads(body, heading);
+  const next = (heads.length ? Math.max(...heads.map((h) => h.n)) : 0) + 1;
+  const round = `### 第${next}轮 ${day}\n${text}`;
+
+  const bounds = sectionBounds(body, heading);
+  const lines = body.split('\n');
+  if (bounds) {
+    const existing = lines
+      .slice(bounds.start + 1, bounds.end)
+      .join('\n')
+      .replace(/^\n+|\n+$/g, '');
+    const content = existing ? `${round}\n\n${existing}` : round;
+    return upsertSection(body, heading, content);
+  }
+  const sep = body.trim() === '' ? '' : body.endsWith('\n') ? '\n' : '\n\n';
+  return `${body}${sep}${heading}\n${round}\n`;
+}
+
 // ---------- atomic write (contract §6: temp + rename) ----------
 
 export interface FileSystem {

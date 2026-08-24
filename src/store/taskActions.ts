@@ -15,12 +15,16 @@ import type { Actor, Status, Task } from '../model/types';
 import { taskPath } from './taskPaths';
 import type { LogWriter, TaskStore } from './taskStore';
 
-// Body-section writer (the `## 委派` block, FR-015). VaultSource implements it.
+// Body-section writer (the `## 委派` block, FR-015/FR-048). VaultSource implements it.
+// upsertSection is the generic whole-section replacer (other callers keep it); the delegation
+// block instead uses appendDelegationRound — rounds are appended newest-first, never replaced.
 export interface SectionWriter {
   upsertSection(path: string, heading: string, content: string): Promise<void>;
+  appendDelegationRound(path: string, instruction: string): Promise<void>;
 }
 
-const DELEGATE_HEADING = '## 委派';
+// The delegation block heading — shared by the pure round-append layer (frontmatter.ts) callers.
+export const DELEGATE_HEADING = '## 委派';
 
 // Default (zh) translator so the constructor stays a pure-logic default for unit tests.
 const ZH: T = createT('zh-CN');
@@ -124,8 +128,10 @@ export class TaskActions {
     const task = this.taskAt(path);
     if (!task) return 'error';
     const stamp = localIsoMinute(this.now());
+    // session is hook/ops-owned (FR-048, like `dispatched`): the plugin NEVER writes it here —
+    // resume anchoring is the dispatch hook's job on the next fire.
     await this.writeFrontmatter(path, { assignee, dispatched: stamp });
-    await this.body.upsertSection(path, DELEGATE_HEADING, instruction.trim());
+    await this.body.appendDelegationRound(path, instruction.trim());
     await this.body.appendLog(path, { ts: this.now(), actor: this.actor, text: `委派给 ${assignee}` });
     try {
       return await this.hooks.fireDispatch({ ...task, assignee, dispatched: stamp }, path, instruction);

@@ -5,11 +5,12 @@
 import { TFile, type App, type EventRef, type TAbstractFile } from 'obsidian';
 import type { EntryInput } from '../log/executionLog';
 import { recordEntry } from '../log/executionLog';
-import { parseTaskFile, serializeTaskFile, upsertSection } from '../util/frontmatter';
+import { parseTaskFile, serializeTaskFile, appendDelegationRound, upsertSection } from '../util/frontmatter';
 import type { Source, Status } from '../model/types';
 import { captureToTask, slugify, type Capture } from '../view/captureParse';
 import { isLibraryPath, taskDir, taskPath as computeTaskPath } from './taskPaths';
 import type { SectionWriter } from './taskActions';
+import { DELEGATE_HEADING } from './taskActions';
 import type { LogWriter, TaskStore, VaultReader } from './taskStore';
 import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
 
@@ -74,6 +75,17 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Revie
       const prefix = fence ? fence[0] : '';
       const body = fence ? data.slice(fence[0].length) : data;
       return prefix + upsertSection(body, heading, content);
+    });
+  }
+
+  // Delegation round-append (FR-048): unlike upsertSection this never replaces the section —
+  // the new instruction becomes round N+1 at the top, prior rounds stay verbatim.
+  async appendDelegationRound(path: string, instruction: string): Promise<void> {
+    await this.app.vault.process(this.mustFile(path), (data) => {
+      const fence = /^---\n[\s\S]*?\n---\n?/.exec(data);
+      const prefix = fence ? fence[0] : '';
+      const body = fence ? data.slice(fence[0].length) : data;
+      return prefix + appendDelegationRound(body, DELEGATE_HEADING, instruction, new Date());
     });
   }
 

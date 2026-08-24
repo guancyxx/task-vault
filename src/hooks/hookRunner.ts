@@ -74,6 +74,9 @@ function vars(task: Task, path: string, instruction: string): Record<string, str
     TASK_TITLE: task.title,
     TASK_ASSIGNEE: task.assignee ?? '',
     TASK_INSTRUCTION: instruction,
+    // FR-048: resumable agent session anchor. Hook/ops-maintained frontmatter field; absent →
+    // empty string so `{TASK_SESSION}` templates stay valid (cold start) without branching.
+    TASK_SESSION: task.session ?? '',
   };
 }
 
