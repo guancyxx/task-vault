@@ -157,7 +157,13 @@ export default class TaskVaultPlugin extends Plugin {
       // Table-driven (CREATE_COMMAND_ROWS) so ids/keys can't drift from the spec.
       ...(() => {
         const createRunners: Record<string, () => void> = {
-          'new-task': () => new NewTaskModal(this.app, onCapture, this.t).open(),
+          'new-task': () =>
+            new NewTaskModal(
+              this.app,
+              this.store,
+              async (capture, now) => void (await this.apiSource.createTaskFile(capture, now)),
+              this.t,
+            ).open(),
           'new-project': () =>
             new NewProjectModal(
               this.app,

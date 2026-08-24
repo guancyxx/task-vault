@@ -7,9 +7,10 @@
 // file — that gate is exactly what keeps the six annotation commands greyed out on non-task files.
 
 import { Modal, Notice, TFile, type App } from 'obsidian';
+import type { TaskStore } from '../store/taskStore';
 import type { T } from '../i18n';
-import { parseCapture } from './captureParse';
-import type { CaptureHandler } from './sidebarView';
+import type { Capture } from './captureParse';
+import { formToCapture, knownProjects, previewDue, type NewTaskFormValue } from './newTaskForm';
 import { projectDashboardMd, projectNoteMd, registerInDashboard } from './projectTemplates';
 
 export interface ProjectCreateOptions {
@@ -20,7 +21,9 @@ export interface ProjectCreateOptions {
 
 // Pure command table for the two creation commands (mirrors COMMAND_ROWS in commands.ts): the
 // shipped registration in main.ts iterates this, so ids / name keys / default hotkey letters
-// cannot drift from the spec (FR-040/FR-041, SC-020).
+// cannot drift from the spec (FR-040/FR-041, SC-022).
+// new-project = J (2026-08-24 revision): P collided with Obsidian's core Cmd+Shift+P
+// (quick switcher) — core bindings silently shadow plugin defaults.
 export interface CreateCommandRow {
   id: string;
   nameKey: Parameters<T>[0];
@@ -29,14 +32,21 @@ export interface CreateCommandRow {
 
 export const CREATE_COMMAND_ROWS: readonly CreateCommandRow[] = [
   { id: 'new-task', nameKey: 'cmd.newTask', key: 'N' },
-  { id: 'new-project', nameKey: 'cmd.newProject', key: 'P' },
+  { id: 'new-project', nameKey: 'cmd.newProject', key: 'J' },
 ] as const;
 
-// 新建任务 modal: one input, Enter → parse → create (same seam as the sidebar capture box).
+// 新建任务 modal (FR-040 rev 2026-08-24): form with title / project dropdown / priority /
+// NL due text. The project dropdown lists knownProjects(store) so a picked name maps 1:1 to
+// the on-disk project folder — the fix for "capture syntax created tasks under the wrong
+// project path". Submit assembles a Capture via formToCapture and rides the SAME onCapture
+// seam the sidebar box uses, so file bytes stay identical across all three entry points.
 export class NewTaskModal extends Modal {
+  private form: NewTaskFormValue = { title: '', project: '', priority: '', dueText: '' };
+
   constructor(
     app: App,
-    private onCapture: CaptureHandler,
+    private store: TaskStore | null,
+    private createCapture: (capture: Capture, now: Date) => Promise<void>,
     private t: T,
     private now: () => Date = () => new Date(),
   ) {
@@ -48,24 +58,104 @@ export class NewTaskModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('tv-detail');
-    const input = contentEl.createEl('input', {
-      cls: 'tv-capture',
-      attr: { type: 'text', placeholder: this.t('capture.placeholder') },
+    const t = this.t;
+
+    // Title (required)
+    contentEl.createEl('label', { cls: 'tv-form-label', text: t('form.title') });
+    const titleInput = contentEl.createEl('input', {
+      cls: 'tv-capture tv-form-input',
+      attr: { type: 'text', placeholder: t('form.titlePlaceholder') },
     });
-    input.focus();
-    input.addEventListener('keydown', (evt: KeyboardEvent) => {
-      if (evt.key !== 'Enter' || evt.isComposing) return; // let IME composition finish
-      const text = input.value;
-      if (parseCapture(text, this.now()) === null) {
-        new Notice(this.t('capture.emptyTitle'));
+    titleInput.addEventListener('input', () => {
+      this.form.title = titleInput.value;
+    });
+
+    // Project (dropdown of known projects + free text via an editable datalist)
+    contentEl.createEl('label', { cls: 'tv-form-label', text: t('form.project') });
+    const projectInput = contentEl.createEl('input', {
+      cls: 'tv-capture tv-form-input',
+      attr: { type: 'text', list: 'tv-new-task-projects', placeholder: t('form.projectPlaceholder') },
+    });
+    const datalist = contentEl.createEl('datalist', { attr: { id: 'tv-new-task-projects' } });
+    for (const name of this.store ? knownProjects(this.store.allEntries().map((e) => e.task)) : []) {
+      datalist.createEl('option', { attr: { value: name } });
+    }
+    projectInput.addEventListener('input', () => {
+      this.form.project = projectInput.value;
+    });
+
+    // Priority
+    contentEl.createEl('label', { cls: 'tv-form-label', text: t('form.priority') });
+    const prioSelect = contentEl.createEl('select', { cls: 'tv-form-select' });
+    for (const [value, label] of [
+      ['', t('form.priorityDefault')],
+      ['high', t('form.priorityHigh')],
+      ['normal', t('form.priorityNormal')],
+      ['low', t('form.priorityLow')],
+    ] as const) {
+      prioSelect.createEl('option', { attr: { value }, text: label });
+    }
+    prioSelect.addEventListener('change', () => {
+      this.form.priority = prioSelect.value as NewTaskFormValue['priority'];
+    });
+
+    // Due (natural language, '' = today 22:00) with live preview
+    contentEl.createEl('label', { cls: 'tv-form-label', text: t('form.due') });
+    const dueInput = contentEl.createEl('input', {
+      cls: 'tv-capture tv-form-input',
+      attr: { type: 'text', placeholder: t('form.duePlaceholder') },
+    });
+    const duePreview = contentEl.createDiv({ cls: 'tv-form-hint' });
+    duePreview.setText(t('form.dueDefaultHint'));
+    const refreshPreview = (): void => {
+      this.form.dueText = dueInput.value;
+      if (dueInput.value.trim() === '') {
+        duePreview.setText(t('form.dueDefaultHint'));
         return;
       }
-      input.value = '';
-      void this.onCapture(text, this.now()).catch((e) =>
-        new Notice(this.t('capture.failed', { err: String(e) })),
-      );
-      this.close();
+      const resolved = previewDue(dueInput.value, this.now());
+      duePreview.setText(resolved === null ? t('form.dueInvalid') : t('form.dueResolved', { due: resolved }));
+    };
+    dueInput.addEventListener('input', refreshPreview);
+
+    // Audit R2: an explicit submit button — the priority <select> has no Enter-to-submit, and
+    // mouse users need a visible confirm; Enter on the text inputs still submits.
+    const submitBtn = contentEl.createEl('button', {
+      cls: 'tv-form-submit',
+      text: t('form.submit'),
     });
+    submitBtn.addEventListener('click', () => void this.submit());
+    prioSelect.addEventListener('keydown', (evt: KeyboardEvent) => {
+      if (evt.key === 'Enter' && !evt.isComposing) void this.submit();
+    });
+
+    // Enter on any field submits (IME-safe); Esc cancels (Modal default).
+    for (const el of [titleInput, projectInput, dueInput]) {
+      el.addEventListener('keydown', (evt: KeyboardEvent) => {
+        if (evt.key !== 'Enter' || evt.isComposing) return;
+        void this.submit();
+      });
+    }
+    titleInput.focus();
+  }
+
+  private async submit(): Promise<void> {
+    const res = formToCapture(this.form, this.now());
+    if (!res.ok) {
+      const msg =
+        res.reason === 'emptyTitle'
+          ? this.t('capture.emptyTitle')
+          : res.reason === 'badProject'
+            ? this.t('cmd.newProjectInvalid')
+            : this.t('form.dueInvalid');
+      new Notice(msg);
+      return;
+    }
+    const now = this.now();
+    this.close();
+    await this.createCapture(res.capture, now).catch((e) =>
+      new Notice(this.t('capture.failed', { err: String(e) })),
+    );
   }
 
   onClose(): void {

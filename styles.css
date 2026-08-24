@@ -931,3 +931,43 @@ button.tv-chip-btn:hover {
   color: var(--text-faint);
   padding-left: 4px;
 }
+
+/* FR-040 rev: new-task form modal (title / project / priority / due). */
+.tv-form-label {
+  display: block;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin: 10px 0 4px;
+}
+.tv-form-input,
+.tv-form-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+.tv-form-select {
+  appearance: auto;
+}
+.tv-form-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.tv-form-submit {
+  margin-top: 14px;
+  padding: 6px 18px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-medium);
+  cursor: pointer;
+}
+.tv-form-submit:hover {
+  background: var(--interactive-accent-hover);
+}

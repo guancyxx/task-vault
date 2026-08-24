@@ -16,7 +16,7 @@ describe('creation command table (FR-040/FR-041)', () => {
   it('registers exactly new-task:N and new-project:P', () => {
     expect(CREATE_COMMAND_ROWS.map((r) => `${r.id}:${r.key}`)).toEqual([
       'new-task:N',
-      'new-project:P',
+      'new-project:J',
     ]);
   });
 
