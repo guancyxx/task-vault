@@ -75,4 +75,3 @@ describe('capture snapshot/restore (FR-044, audit C1)', () => {
     expect(ranges).toEqual([]);
   });
 });
-
