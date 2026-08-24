@@ -56,6 +56,8 @@ export interface Task {
   source?: Source;
   assignee?: string; // actor or agent name; user = self
   dispatched?: string; // YYYY-MM-DDTHH:MM — delegation timestamp
+  session?: string; // resumable agent session id (FR-048) — hook/ops maintained (like
+  // `dispatched`), the plugin UI reads but never writes it; empty = cold start
   project?: string;
   area?: string;
   parent?: string; // parent task id (FR-005)
