@@ -328,7 +328,7 @@
 | H10 | 0.3.0 发版：版本号 + tag + release + attest，部署 vault 后删 Calendar 插件 | S | release+部署核验 | FR-033/036 | ✅ 2026-08-24（PR #23，tag/release/三资产 attest 验证过；Calendar 删除待用户确认）|
 | H11 | README 双语（中英对照 + 语言切换锚点） | M | — | FR-038 | ✅ 2026-08-23（PR #18）|
 | H12 | UI 本地化 i18n（字典层 + 设置页语言下拉 + 全文案覆盖） | M | unit+manual | FR-039 | ✅ 2026-08-23（PR #19，实机 zh/en 双向验证）|
-| H13 | 新建任务/新建项目命令（创建类命令 + 项目脚手架 + 路径配置） | M | unit+manual | FR-040/041 | ✅ 2026-08-24（PR #25）|
+| H13 | 新建任务/新建项目命令（创建类命令 + 项目脚手架 + 路径配置） | M | unit+manual | FR-040/041 | ✅ 2026-08-24（PR #25/28/29/30，三轮实机反馈迭代：热键 P→J、N→M 皆因核心绑定遮蔽；表单化+Enter 逐字段推进；终态 M=新建任务表单 / J=新建项目，M 键端到端实测+用户终验通过）|
 | H14 | README 任务管理思路章（双语 The workflow + SC-019 九→十） | S | — | FR-042 | ✅ 2026-08-24（PR #26，Codex 审计 APPROVE，npm test 429 绿 + 双语结构脚本核对）|
 | H15 | 规范文档补齐 vault 版两节（承重前缀坑 + FR-030a 引用通道） | S | — | FR-017/FR-030a | ✅ 2026-08-24（PR #27，Codex 审计 APPROVE，npm test 442 绿；vault 母本 Nit-1 已同步修）|
 
