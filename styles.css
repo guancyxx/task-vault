@@ -957,3 +957,17 @@ button.tv-chip-btn:hover {
   color: var(--text-faint);
   margin-top: 3px;
 }
+
+.tv-form-submit {
+  margin-top: 14px;
+  padding: 6px 18px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-medium);
+  cursor: pointer;
+}
+.tv-form-submit:hover {
+  background: var(--interactive-accent-hover);
+}

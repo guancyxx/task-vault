@@ -118,6 +118,17 @@ export class NewTaskModal extends Modal {
     };
     dueInput.addEventListener('input', refreshPreview);
 
+    // Audit R2: an explicit submit button — the priority <select> has no Enter-to-submit, and
+    // mouse users need a visible confirm; Enter on the text inputs still submits.
+    const submitBtn = contentEl.createEl('button', {
+      cls: 'tv-form-submit',
+      text: t('form.submit'),
+    });
+    submitBtn.addEventListener('click', () => void this.submit());
+    prioSelect.addEventListener('keydown', (evt: KeyboardEvent) => {
+      if (evt.key === 'Enter' && !evt.isComposing) void this.submit();
+    });
+
     // Enter on any field submits (IME-safe); Esc cancels (Modal default).
     for (const el of [titleInput, projectInput, dueInput]) {
       el.addEventListener('keydown', (evt: KeyboardEvent) => {
@@ -131,7 +142,13 @@ export class NewTaskModal extends Modal {
   private async submit(): Promise<void> {
     const res = formToCapture(this.form, this.now());
     if (!res.ok) {
-      new Notice(res.reason === 'emptyTitle' ? this.t('capture.emptyTitle') : this.t('form.dueInvalid'));
+      const msg =
+        res.reason === 'emptyTitle'
+          ? this.t('capture.emptyTitle')
+          : res.reason === 'badProject'
+            ? this.t('cmd.newProjectInvalid')
+            : this.t('form.dueInvalid');
+      new Notice(msg);
       return;
     }
     const now = this.now();

@@ -112,6 +112,7 @@ export const zh: Record<keyof typeof en, string> = {
   'form.dueDefaultHint': '留空 = 今天 22:00',
   'form.dueInvalid': '到期时间无法解析',
   'form.dueResolved': '→ {due}',
+  'form.submit': '创建',
   'cmd.newProjectPlaceholder': '项目名（将创建主笔记 + Dashboard 并登记导航）',
   'cmd.newProjectEmpty': '项目名不能为空',
   'cmd.newProjectInvalid': '项目名不能包含 / " [ ] 或换行',

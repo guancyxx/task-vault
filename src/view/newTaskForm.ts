@@ -23,7 +23,7 @@ export interface NewTaskFormValue {
 
 export type NewTaskFormResult =
   | { ok: true; capture: Capture }
-  | { ok: false; reason: 'emptyTitle' | 'badDue'; duePreview?: string };
+  | { ok: false; reason: 'emptyTitle' | 'badDue' | 'badProject'; duePreview?: string };
 
 // Known project names from indexed tasks (project field → repo/* tag), de-wikilinked and
 // deduped, sorted case-insensitively. Pure over plain Task[].
@@ -42,15 +42,27 @@ export function knownProjects(tasks: Pick<Task, 'project' | 'tags'>[]): string[]
 }
 
 // Assemble the form value into a Capture. Title trimmed (empty → error); priority optional;
-// project optional; dueText parsed by nlDateParser and ONLY accepted when the whole input is
-// consumed (a bare time like "15:00" parses fine; "明天 顺便" would leave junk → badDue).
+// project optional but validated (audit R1, 2026-08-24): the same /[ " [ ] newline]/ rejection
+// NewProjectModal applies — a name like `a/b` would pass through to projectFolder's sanitize,
+// landing in an `a b` folder while frontmatter keeps `a/b`, drifting the datalist name away
+// from the on-disk folder (breaks the FR-040 1:1 guarantee);
+// dueText parsed by nlDateParser and ONLY accepted when the whole input is consumed.
+// Same validation rule as NewProjectModal's entry check — pure here for unit testing.
+export function isValidProjectName(name: string): boolean {
+  return !/[/"\[\]\n]/.test(name);
+}
+
 export function formToCapture(value: NewTaskFormValue, now: Date): NewTaskFormResult {
   const title = value.title.replace(/\s+/g, ' ').trim();
   if (title === '') return { ok: false, reason: 'emptyTitle' };
 
   const capture: Capture = { title };
   if (value.priority !== '') capture.priority = value.priority;
-  if (value.project.trim() !== '') capture.project = value.project.trim();
+  if (value.project.trim() !== '') {
+    // Audit R1: reject instead of silently sanitizing downstream (see isValidProjectName).
+    if (!isValidProjectName(value.project)) return { ok: false, reason: 'badProject' };
+    capture.project = value.project.trim();
+  }
 
   if (value.dueText.trim() !== '') {
     const nl = parseNlDate(value.dueText.trim(), now);

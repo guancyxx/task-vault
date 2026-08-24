@@ -124,6 +124,7 @@ export const en = {
   'form.dueDefaultHint': 'Empty = today 22:00',
   'form.dueInvalid': 'Cannot parse the due time',
   'form.dueResolved': '→ {due}',
+  'form.submit': 'Create',
   'cmd.newProjectPlaceholder': 'Project name (creates main note + Dashboard, registers nav)',
   'cmd.newProjectEmpty': 'Project name cannot be empty',
   'cmd.newProjectInvalid': 'Project name must not contain / " [ ] or newlines',

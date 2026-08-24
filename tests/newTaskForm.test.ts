@@ -71,6 +71,17 @@ describe('formToCapture (new-task form → Capture)', () => {
     expect(res.ok).toBe(true);
     if (res.ok) expect('project' in res.capture).toBe(false);
   });
+
+  // Audit R1 (2026-08-24): a name with / " [ ] or newline would drift the frontmatter value
+  // away from the on-disk (sanitized) folder — reject at the form, same rule as NewProjectModal.
+  it('project names with / " [ ] or newline are rejected (badProject)', () => {
+    for (const project of ['a/b', 'say "hi"', '[wiki]', 'line\nbreak']) {
+      const res = formToCapture({ title: 'x', project, priority: '', dueText: '' }, NOW);
+      expect(res).toMatchObject({ ok: false, reason: 'badProject' });
+    }
+    // clean names (incl. spaces, CJK, hyphens) still pass
+    expect(formToCapture({ title: 'x', project: 'Task Vault 2', priority: '', dueText: '' }, NOW).ok).toBe(true);
+  });
 });
 
 describe('knownProjects (dropdown source, 1:1 with disk folders)', () => {
