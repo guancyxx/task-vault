@@ -24,6 +24,9 @@ export interface ProjectCreateOptions {
 // cannot drift from the spec (FR-040/FR-041, SC-022).
 // new-project = J (2026-08-24 revision): P collided with Obsidian's core Cmd+Shift+P
 // (quick switcher) — core bindings silently shadow plugin defaults.
+// new-task = M (2026-08-24 revision 2): N collided with the core's file-explorer
+// "new note in new pane" (Cmd+Shift+N) — same shadowing; M verified unoccupied on
+// the live machine (2026-08-24, keystroke probe created no stray note).
 export interface CreateCommandRow {
   id: string;
   nameKey: Parameters<T>[0];
@@ -31,7 +34,7 @@ export interface CreateCommandRow {
 }
 
 export const CREATE_COMMAND_ROWS: readonly CreateCommandRow[] = [
-  { id: 'new-task', nameKey: 'cmd.newTask', key: 'N' },
+  { id: 'new-task', nameKey: 'cmd.newTask', key: 'M' },
   { id: 'new-project', nameKey: 'cmd.newProject', key: 'J' },
 ] as const;
 
