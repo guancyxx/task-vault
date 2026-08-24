@@ -80,6 +80,13 @@ export class TaskVaultView extends ItemView {
   render(): void {
     const root = this.containerEl;
     const t = this.getT();
+    // FR-044 heartbeat guard (audit C1): a full re-render rebuilds the capture input, which
+    // would wipe in-flight typing. Snapshot value/focus/selection before empty() and restore
+    // after — and skip the rebuild entirely mid-IME-composition (restoring a selection across
+    // a torn-down composition context breaks the IME).
+    const prevInput = root.querySelector('input.tv-capture') as HTMLInputElement | null;
+    const captureState = prevInput ? snapshotCapture(prevInput) : null;
+    if (prevInput && isComposing(prevInput)) return; // never tear down a live IME composition
     root.empty();
     root.addClass('tv-cockpit');
     // Header link to the projects panel (FR-035). One row above capture; leaves the five
@@ -157,6 +164,14 @@ export class TaskVaultView extends ItemView {
         this.renderRowTree(body, e, false);
       }
     }
+
+    // FR-044 heartbeat guard (audit C1), restore half: put the capture input back the way the
+    // user left it — text, focus, and selection. Without this the 60s ticker (or any store
+    // event) would silently discard in-flight typing.
+    if (captureState) {
+      const input = root.querySelector('input.tv-capture') as HTMLInputElement | null;
+      if (input) restoreCapture(input, captureState);
+    }
   }
 
   private renderRowTree(container: HTMLElement, entry: Entry, indent: boolean): void {
@@ -215,6 +230,10 @@ export class TaskVaultView extends ItemView {
       cls: 'tv-capture',
       attr: { type: 'text', placeholder },
     });
+    // FR-044 heartbeat guard (audit C1): track IME composition so render() can skip the rebuild
+    // while a composition is live (see isComposing below).
+    input.addEventListener('compositionstart', () => { (input as any).__tvComposing = true; });
+    input.addEventListener('compositionend', () => { (input as any).__tvComposing = false; });
     input.addEventListener('keydown', (evt: KeyboardEvent) => {
       if (evt.key !== 'Enter' || evt.isComposing) return; // let IME composition finish
       const text = input.value;
@@ -240,6 +259,44 @@ const COUNT_ALERT_CLASS: Partial<Record<Bucket, string>> = {
 export function countClass(bucket: Bucket, count: number): string[] {
   const extra = count > 0 ? COUNT_ALERT_CLASS[bucket] : undefined;
   return extra ? ['tv-count', extra] : ['tv-count'];
+}
+
+// FR-044 heartbeat guard (audit C1): capture-input interaction state to carry across the
+// render() rebuild. Pure — snapshot/restore are split out so the "typing survives a re-render"
+// contract is unit-testable without a DOM.
+export interface CaptureSnapshot {
+  value: string;
+  focused: boolean;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+}
+export function snapshotCapture(input: HTMLInputElement): CaptureSnapshot {
+  return {
+    value: input.value,
+    // Node (unit tests) has no `document`; treat as unfocused there — real runs always have DOM.
+    focused: typeof document !== 'undefined' && document.activeElement === input,
+    selectionStart: input.selectionStart,
+    selectionEnd: input.selectionEnd,
+  };
+}
+export function restoreCapture(input: HTMLInputElement, snap: CaptureSnapshot): void {
+  input.value = snap.value;
+  if (snap.focused) input.focus();
+  if (snap.selectionStart !== null && snap.selectionEnd !== null) {
+    try {
+      input.setSelectionRange(snap.selectionStart, snap.selectionEnd);
+    } catch {
+      // setSelectionRange throws on inputs without text-selection semantics; value is still
+      // restored — acceptable to let the caret fall to the end.
+    }
+  }
+}
+
+// FR-044 heartbeat guard (audit C1): true while an IME composition is active on the input
+// (compositionstart fired without compositionend). Tearing the input down mid-composition
+// would destroy the pre-edit text — skip the whole re-render instead.
+function isComposing(input: HTMLInputElement): boolean {
+  return (input as HTMLInputElement & { __tvComposing?: boolean }).__tvComposing === true;
 }
 
 // FR-045: pick one placeholder example. `rng` is injected (Math.random in prod) so the rotation

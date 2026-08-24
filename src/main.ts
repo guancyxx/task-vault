@@ -278,21 +278,42 @@ export default class TaskVaultPlugin extends Plugin {
     }
   }
 
-  // FR-045: open/reveal the sidebar, then focus + select its capture box. activateView opens the
-  // leaf when absent, so the input is present by the time we query for it (rAF lets the render land).
+  // FR-045: activate the cockpit, creating the right-sidebar leaf when none exists (audit C2 —
+  // getRightLeaf(false) returns null without creating, which silently killed the capture command's
+  // "open the view first" fallback). Reveal + a view-state set is enough for the input to exist.
+  private async activateOrCreateView(): Promise<void> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT);
+    if (existing.length > 0) {
+      workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf: WorkspaceLeaf | null = workspace.getRightLeaf(true);
+    if (leaf) {
+      await leaf.setViewState({ type: VIEW_TYPE_TASK_VAULT, active: true });
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  // FR-045: open/reveal the sidebar, then focus + select its capture box. activateOrCreateView
+  // opens (or creates) the leaf when absent, so the input is present by the time we query for it.
+  // Focus retries across a few animation frames — a single rAF is not always enough after the
+  // view-state lands (audit C2), and it gives up into the captureNoView Notice.
   private async activateCaptureView(): Promise<void> {
-    await this.activateView();
-    const focus = (): void => {
+    await this.activateOrCreateView();
+    const focus = (attempt: number): void => {
       const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_VAULT)[0];
       const input = leaf?.view.containerEl.querySelector('input.tv-capture') as HTMLInputElement | null;
       if (input) {
         input.focus();
         input.select();
+      } else if (attempt < 30) {
+        window.requestAnimationFrame(() => focus(attempt + 1));
       } else {
         new Notice(this.t('command.captureNoView'));
       }
     };
-    window.requestAnimationFrame(focus);
+    window.requestAnimationFrame(() => focus(0));
   }
 
   // Projects panel lives beside the cockpit in the right sidebar.

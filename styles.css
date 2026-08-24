@@ -41,10 +41,12 @@
 }
 /* FR-043 "now layer" sticky headers: review / overdue / today pin to the top so what's burning
    stays visible at any scroll depth. week / done deliberately don't stick (long tail → avoids a
-   wall of stacked headers). Frosted background + static shadow keep the header legible over rows. */
-.tv-section-review > .tv-section-header,
-.tv-section-overdue > .tv-section-header,
-.tv-section-today > .tv-section-header {
+   wall of stacked headers). Scoped to the cockpit only (audit R1) — ProjectDetailView also renders
+   .tv-section-review sections and must not inherit the sticky behaviour. Frosted background +
+   static shadow keep the header legible over rows. */
+.tv-cockpit > .tv-section-review > .tv-section-header,
+.tv-cockpit > .tv-section-overdue > .tv-section-header,
+.tv-cockpit > .tv-section-today > .tv-section-header {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -214,12 +216,7 @@
   justify-content: flex-end;
   gap: 6px;
 }
-.tv-tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
+/* (.tv-tags removed — dead style after the FR-046 row re-layout; audit Nit) */
 /* FR-046 title row: title leads, resident triage chips follow on the same wrapping line. */
 .tv-title-row {
   display: flex;

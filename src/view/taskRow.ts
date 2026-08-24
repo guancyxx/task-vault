@@ -242,7 +242,10 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
 
   // Hover layer (FR-046): organizational chips — p1/p2/p3, #tag, repo/*, project, area, start.
   // CSS reveals it on row hover (opacity 0→1) and keeps it out of the resident layout (height:0).
+  // Pure display (SC-023): clicks on these chips stop propagation so they never trigger the
+  // row-level openDoc handler (audit C3).
   const hover = col.createDiv({ cls: 'tv-hover-chips' });
+  hover.addEventListener('click', (evt) => evt.stopPropagation());
   if (!pri.resident) {
     hover.createSpan({ cls: `tv-tag tv-pri tv-pri-${pri.tag}`, text: pri.tag });
   }
