@@ -8,9 +8,9 @@ import { CREATE_COMMAND_ROWS } from '../src/view/newProjectModal';
 const NOW = new Date('2026-08-24T10:00:00'); // local time, Monday
 
 describe('hotkey rebind: new-project P → J (core Cmd+Shift+P collision)', () => {
-  it('new-task stays N, new-project is now J', () => {
+  it('new-task is now M, new-project is now J', () => {
     expect(CREATE_COMMAND_ROWS.map((r) => `${r.id}:${r.key}`)).toEqual([
-      'new-task:N',
+      'new-task:M',
       'new-project:J',
     ]);
   });
