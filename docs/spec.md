@@ -190,6 +190,13 @@ v0.4 增补（对应 FR-043~047，2026-08-24 侧边栏 UI/UX 第二轮；方案�
 - FR-046 行降噪（本 PR 唯一动 taskRow.ts 的项，独立交付）：行内信息分两层。**常驻层**=色条+勾选框+标题（升第一行主位）+p0（仅 high 显示）+倒计时/过期徽章+agent 相位徽章+➤ assignee+waiting/blocked 标记——分诊信号全保留。**hover 显影层**=#tag / repo/* / project / area chips + p1/p2/p3 优先级 + 🛫 start 徽章——组织性信息降级（CSS opacity 0→1 过渡显影，不占常驻布局）。行内 project chip 与项目分组头双重显示由此消除（分组头是唯一项目名载体）。标题不再被 tags 行挤到第二行，常态行高 3 行→2 行（有状态信号）/1.5 行（干净行）。taskRow 渲染顺序重排为：rail → title 行（含常驻信号）→ dates 行 → hover 行
 - FR-047 分区计数语义化：侧边栏分区头计数按桶分色——overdue 计数 ≥1 渲染红底徽章（复用 tv-overdue 样式 token）、review ≥1 紫底（复用 review 轨色）、today ≥1 accent 底、week/done 及计数为 0 时保持 tv-count 灰。计数是「哪个区在烧」的扫视信号，非装饰
 
+v0.5 增补（2026-08-25 委派体验两痛点：会话续接 + 决策选择化，用户拍板）：
+
+- FR-048 委派会话续接：委派不再总是冷启动。会话锚点按 agent 确定性生成——CC=首派 `claude -p --session-id <TASK_ID>`（任务 id 即 UUID，直接做会话 ID）、续派 `claude -p --resume <TASK_ID>`；Codex=固定线程名 `tv-<TASK_ID>`（续派 `codex exec resume tv-<TASK_ID>`，线程不存在则新建）；Hermes=frontmatter 可选 `session:` 字段（**hook 维护，agent 协议禁手写**，类比 dispatched 禁令），有值则 `hermes -z --resume <session>` 续接。插件侧：①delegatePanel 对已派发任务（dispatched 存在）显示「续接会话」状态标识，textarea 预填「针对上次产出，补充意见：」而非旧指令全文；②`## 委派` 区由 upsert 覆盖改为**轮次追加**（新指令在上，历史轮保留，轮次头 `### 第N轮 YYYY-MM-DD` 或等价可解析格式）；③hookRunner 占位符新增 `{TASK_SESSION}`（同步 TV_TASK_SESSION 环境变量，取 frontmatter session 值，无则空串）。降级保护：resume 失败（会话被清理/不存在）→ hook 降级起新会话，执行记录补一条「会话丢失，冷启动」。兜底 cron（dispatch_backstop）补派同样优先 resume。外部 tv-dispatch-hook.sh（~/.hermes/scripts，仓外运维件）随本 FR 改造，不进本仓；AGENTS.md §2 占位符表同步。委派协议文档（vault《任务系统规范》第 5 节）由 maintainer 同步
+- FR-049 review 一键确认：status=review 的任务在侧边栏行内与详情弹层渲染两操作「✅ 确认完成」「↩ 打回 doing」，点击走 setStatus canonical seam（actor=user，FR-030 本就允许 review→done / review→doing），迁移条目由 seam 自动落盘。与 Reminders 勾选确认通道（FR-023）并存不冲突。目的：最高频决策（复核）从「打开文件手打」降为一键
+- FR-050 决策点协议与渲染：任务文件新增可选标准区 `## 决策点`，行格式 `- [ ] Dn <选项描述>`（同 Dn 前缀 = 互斥选项组；勾选后 `- [x]` + 行尾 ` ✅ YYYY-MM-DD`）。写入方 = agent（需要用户拍板时问询）或 user 手写；agent 侧协议进 skills/task-vault-agent/SKILL.md，vault《任务系统规范》由 maintainer 同步（不进本仓）。插件侧：①侧边栏新增「待你决策」聚合区（扫描含未勾选决策点的任务，计数入分区头）；②详情弹层把决策点渲染成按钮组（同 Dn 组互斥；点选 = 勾选项 + 行尾补 ✅ 日期 + 自动落一条 kind=决策、actor=user 的执行记录，正文 = `Dn <所选选项>`）；③保持原生 markdown checkbox 语义——Obsidian 阅读视图零插件也能点，agent 读文件零新解析器（与 FR-030a 同哲学：确定性结构优先于自然语言）
+- FR-051 执行记录决策徽标：详情弹层执行记录时间线中 kind=决策 的条目加徽标/左侧边框高亮（紫系，与 review 状态轨呼应）；评论/卡点维持现状。纯展示层
+
 明确不在 v1（越界即拒绝）：递归任务、看板、多用户、外部数据库、移动端 Obsidian 支持、任务关系图。统计面板原在 v1 排除项中，v0.3 起按 FR-035/036 纳入（项目统计与日历视图）。
 
 ## Assumptions（默认已选，可否决）
