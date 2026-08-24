@@ -10,11 +10,15 @@ declare module 'obsidian' {
     unload(): void;
     onunload(): void;
     register(cb: () => void): void;
+    // Registers a setInterval id for automatic clearing on unload (FR-044 heartbeat).
+    registerInterval(id: number): number;
   }
 
   export interface WorkspaceLeaf {
     getViewState(): unknown;
     setViewState(state: unknown): Promise<void>;
+    // The view mounted in this leaf; ItemView carries containerEl (FR-045 capture focus).
+    view: ItemView;
   }
 
   // Result bag Obsidian passes to ItemView.setState (opaque here — only forwarded to super).

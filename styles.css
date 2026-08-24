@@ -39,6 +39,22 @@
 .tv-section-header:hover {
   background: var(--background-modifier-hover);
 }
+/* FR-043 "now layer" sticky headers: review / overdue / today pin to the top so what's burning
+   stays visible at any scroll depth. week / done deliberately don't stick (long tail → avoids a
+   wall of stacked headers). Scoped to the cockpit only (audit R1) — ProjectDetailView also renders
+   .tv-section-review sections and must not inherit the sticky behaviour. Frosted background +
+   static shadow keep the header legible over rows. */
+.tv-cockpit > .tv-section-review > .tv-section-header,
+.tv-cockpit > .tv-section-overdue > .tv-section-header,
+.tv-cockpit > .tv-section-today > .tv-section-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--background-primary) 85%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
 .tv-fold {
   width: 1em;
   color: var(--text-faint);
@@ -49,6 +65,25 @@
 .tv-count {
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+/* FR-047 count semantics: a non-zero overdue/review/today count reads as "this bucket is burning".
+   Filled pill in the bucket's accent; week/done and any zero count keep the bare grey tv-count. */
+.tv-count-alert,
+.tv-count-review,
+.tv-count-today {
+  padding: 0 6px;
+  border-radius: 8px;
+  font-weight: 700;
+  color: var(--text-on-accent);
+}
+.tv-count-alert {
+  background: var(--color-red);
+}
+.tv-count-review {
+  background: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+}
+.tv-count-today {
+  background: var(--color-accent);
 }
 .tv-empty {
   padding: 2px 10px;
@@ -181,11 +216,33 @@
   justify-content: flex-end;
   gap: 6px;
 }
-.tv-tags {
+/* (.tv-tags removed — dead style after the FR-046 row re-layout; audit Nit) */
+/* FR-046 title row: title leads, resident triage chips follow on the same wrapping line. */
+.tv-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.tv-title-row .tv-title {
+  flex: 1 1 auto;
+  min-width: 8em;
+}
+/* FR-046 hover layer: organizational chips (p1-p3, #tag, repo, project, area, start). Hidden from
+   the resident layout (height:0) so a clean row stays compact; revealed on row hover. */
+.tv-hover-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.tv-row:hover .tv-hover-chips {
+  height: auto;
+  opacity: 1;
 }
 .tv-tag {
   font-size: 0.78em;

@@ -7,7 +7,7 @@ import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Bucket } from '../time/timeRules';
-import { createT, type MessageKey, type T } from '../i18n';
+import { createT, tArray, type MessageKey, type T } from '../i18n';
 import { agentProgress } from '../model/agentProgress';
 import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
@@ -66,6 +66,10 @@ export class TaskVaultView extends ItemView {
 
   protected async onOpen(): Promise<void> {
     this.unsubscribe = this.store.onChange(() => this.render());
+    // FR-044 heartbeat: re-render every 60s so countdown/overdue badges advance with wall-clock
+    // time even when the store is quiet. registerInterval auto-clears on view close; render()
+    // preserves collapse state, so nothing folds/unfolds under the user.
+    this.registerInterval(window.setInterval(() => this.render(), 60_000));
     this.render();
   }
 
@@ -76,6 +80,13 @@ export class TaskVaultView extends ItemView {
   render(): void {
     const root = this.containerEl;
     const t = this.getT();
+    // FR-044 heartbeat guard (audit C1): a full re-render rebuilds the capture input, which
+    // would wipe in-flight typing. Snapshot value/focus/selection before empty() and restore
+    // after — and skip the rebuild entirely mid-IME-composition (restoring a selection across
+    // a torn-down composition context breaks the IME).
+    const prevInput = root.querySelector('input.tv-capture') as HTMLInputElement | null;
+    const captureState = prevInput ? snapshotCapture(prevInput) : null;
+    if (prevInput && isComposing(prevInput)) return; // never tear down a live IME composition
     root.empty();
     root.addClass('tv-cockpit');
     // Header link to the projects panel (FR-035). One row above capture; leaves the five
@@ -102,7 +113,9 @@ export class TaskVaultView extends ItemView {
       const header = section.createDiv({ cls: 'tv-section-header' });
       header.createSpan({ cls: 'tv-fold', text: folded ? '▸' : '▾' });
       header.createSpan({ cls: 'tv-section-title', text: t(labelKey) });
-      header.createSpan({ cls: 'tv-count', text: String(entries.length) });
+      // FR-047: count is a "which bucket is burning" scan signal, not decoration. Colour the badge
+      // by bucket when non-zero — overdue red, review purple, today accent; week/done + 0 stay grey.
+      header.createSpan({ cls: countClass(bucket, entries.length), text: String(entries.length) });
       header.addEventListener('click', () => {
         if (folded) this.collapsed.delete(bucket);
         else this.collapsed.add(bucket);
@@ -150,6 +163,14 @@ export class TaskVaultView extends ItemView {
         if (currentCollapsed) continue;
         this.renderRowTree(body, e, false);
       }
+    }
+
+    // FR-044 heartbeat guard (audit C1), restore half: put the capture input back the way the
+    // user left it — text, focus, and selection. Without this the 60s ticker (or any store
+    // event) would silently discard in-flight typing.
+    if (captureState) {
+      const input = root.querySelector('input.tv-capture') as HTMLInputElement | null;
+      if (input) restoreCapture(input, captureState);
     }
   }
 
@@ -202,10 +223,17 @@ export class TaskVaultView extends ItemView {
   private renderCaptureBox(root: HTMLElement): void {
     if (!this.onCapture) return;
     const t = this.getT();
+    // FR-045: rotate the placeholder through the syntax examples so the capture box teaches the
+    // grammar. Falls back to the single fixed placeholder if the examples list is somehow empty.
+    const placeholder = pickExample(tArray(t, 'capture.examples'), Math.random) || t('capture.placeholder');
     const input = root.createEl('input', {
       cls: 'tv-capture',
-      attr: { type: 'text', placeholder: t('capture.placeholder') },
+      attr: { type: 'text', placeholder },
     });
+    // FR-044 heartbeat guard (audit C1): track IME composition so render() can skip the rebuild
+    // while a composition is live (see isComposing below).
+    input.addEventListener('compositionstart', () => { (input as any).__tvComposing = true; });
+    input.addEventListener('compositionend', () => { (input as any).__tvComposing = false; });
     input.addEventListener('keydown', (evt: KeyboardEvent) => {
       if (evt.key !== 'Enter' || evt.isComposing) return; // let IME composition finish
       const text = input.value;
@@ -220,6 +248,63 @@ export class TaskVaultView extends ItemView {
   }
 }
 
+
+// FR-047: bucket-coloured count badge classes. Grey (bare tv-count) for week/done or a zero count;
+// a semantic overlay for overdue/review/today when they carry anything. Pure — unit-tested.
+const COUNT_ALERT_CLASS: Partial<Record<Bucket, string>> = {
+  overdue: 'tv-count-alert',
+  review: 'tv-count-review',
+  today: 'tv-count-today',
+};
+export function countClass(bucket: Bucket, count: number): string[] {
+  const extra = count > 0 ? COUNT_ALERT_CLASS[bucket] : undefined;
+  return extra ? ['tv-count', extra] : ['tv-count'];
+}
+
+// FR-044 heartbeat guard (audit C1): capture-input interaction state to carry across the
+// render() rebuild. Pure — snapshot/restore are split out so the "typing survives a re-render"
+// contract is unit-testable without a DOM.
+export interface CaptureSnapshot {
+  value: string;
+  focused: boolean;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+}
+export function snapshotCapture(input: HTMLInputElement): CaptureSnapshot {
+  return {
+    value: input.value,
+    // Node (unit tests) has no `document`; treat as unfocused there — real runs always have DOM.
+    focused: typeof document !== 'undefined' && document.activeElement === input,
+    selectionStart: input.selectionStart,
+    selectionEnd: input.selectionEnd,
+  };
+}
+export function restoreCapture(input: HTMLInputElement, snap: CaptureSnapshot): void {
+  input.value = snap.value;
+  if (snap.focused) input.focus();
+  if (snap.selectionStart !== null && snap.selectionEnd !== null) {
+    try {
+      input.setSelectionRange(snap.selectionStart, snap.selectionEnd);
+    } catch {
+      // setSelectionRange throws on inputs without text-selection semantics; value is still
+      // restored — acceptable to let the caret fall to the end.
+    }
+  }
+}
+
+// FR-044 heartbeat guard (audit C1): true while an IME composition is active on the input
+// (compositionstart fired without compositionend). Tearing the input down mid-composition
+// would destroy the pre-edit text — skip the whole re-render instead.
+function isComposing(input: HTMLInputElement): boolean {
+  return (input as HTMLInputElement & { __tvComposing?: boolean }).__tvComposing === true;
+}
+
+// FR-045: pick one placeholder example. `rng` is injected (Math.random in prod) so the rotation
+// unit-tests deterministically; an empty list yields '' (caller falls back to the fixed string).
+export function pickExample(xs: readonly string[], rng: () => number): string {
+  if (xs.length === 0) return '';
+  return xs[Math.floor(rng() * xs.length)];
+}
 
 // Root-row count per project within a bucket (for the divider's count badge). `uncat` is the
 // localized fallback label — passed in so it matches the render loop's grouping key exactly.

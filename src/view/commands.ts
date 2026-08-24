@@ -148,6 +148,12 @@ export interface CommandRow {
   key: string;
 }
 
+// FR-045 capture command: ungated (creation doesn't depend on the active file — same policy as the
+// two creation commands). Registered in main.ts with a plain callback that activates the sidebar
+// and focuses the capture box. Kept table-shaped so the id + hotkey can't drift from the spec.
+// I=Input; verified free of the L/D/C/K/S/A (gated) and M/J (create) letters already shipped.
+export const CAPTURE_COMMAND_ROW: CommandRow = { id: 'capture-task', nameKey: 'command.captureTask', key: 'I' };
+
 export const COMMAND_ROWS: readonly CommandRow[] = [
   { id: 'quick-log', nameKey: 'cmd.quickLog', key: 'L' },
   { id: 'log-decision', nameKey: 'cmd.logDecision', key: 'D' },
