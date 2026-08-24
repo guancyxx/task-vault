@@ -12,6 +12,7 @@ import { TaskStore } from './store/taskStore';
 import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
 import { COMMAND_ROWS, registerCommands } from './view/commands';
+import { NewProjectModal, NewTaskModal, CREATE_COMMAND_ROWS } from './view/newProjectModal';
 import { openLegend } from './view/legend';
 import { AgendaVaultView, VIEW_TYPE_TASK_VAULT_AGENDA } from './view/agendaView';
 import { CalendarVaultView, VIEW_TYPE_TASK_VAULT_CALENDAR } from './view/calendarView';
@@ -150,6 +151,33 @@ export default class TaskVaultPlugin extends Plugin {
       this.addCommand({ id: 'open-projects', name: this.t('cmd.openProjects'), callback: () => void this.activateProjectsView() }),
       this.addCommand({ id: 'open-agenda', name: this.t('cmd.openAgenda'), callback: () => void this.activateAgendaView() }),
       this.addCommand({ id: 'legend', name: this.t('cmd.legend'), callback: () => openLegend(this.app, this.t) }),
+      // FR-040/FR-041: the two creation commands. Plain callbacks (no commandGate) — creation
+      // doesn't depend on the active file. 新建任务 rides the same parseCapture → onCapture
+      // seam as the sidebar box; 新建项目 scaffolds notes per the configured vault paths.
+      // Table-driven (CREATE_COMMAND_ROWS) so ids/keys can't drift from the spec.
+      ...(() => {
+        const createRunners: Record<string, () => void> = {
+          'new-task': () => new NewTaskModal(this.app, onCapture, this.t).open(),
+          'new-project': () =>
+            new NewProjectModal(
+              this.app,
+              {
+                projectsFolder: this.config.get().projects_folder,
+                dashboardPath: this.config.get().dashboard_file,
+                now: () => new Date(),
+              },
+              this.t,
+            ).open(),
+        };
+        return CREATE_COMMAND_ROWS.map((row) =>
+          this.addCommand({
+            id: row.id,
+            name: this.t(row.nameKey),
+            hotkeys: [{ modifiers: ['Mod', 'Shift'], key: row.key }],
+            callback: createRunners[row.id],
+          }),
+        );
+      })(),
       // FR-032 / SC-013: the six task commands, each gated on the active file being an indexed
       // task, with default Mod+Shift L/D/C/K/S/A hotkeys.
       ...registerCommands(this, this.app, this.store, this.actions, getT),
@@ -209,6 +237,8 @@ export default class TaskVaultPlugin extends Plugin {
       'open-projects': 'cmd.openProjects',
       'open-agenda': 'cmd.openAgenda',
       legend: 'cmd.legend',
+      'new-task': 'cmd.newTask',
+      'new-project': 'cmd.newProject',
     };
     for (const row of COMMAND_ROWS) nameKeyById[row.id] = row.nameKey;
     for (const cmd of this.commands) {
