@@ -36,6 +36,8 @@ export class TaskVaultSettingTab extends PluginSettingTab {
     const t = this.getT();
     return [
       { name: t('settings.language'), description: t('settings.languageDesc') },
+      { name: t('settings.projectsFolder'), description: t('settings.projectsFolderDesc') },
+      { name: t('settings.dashboardFile'), description: t('settings.dashboardFileDesc') },
       { name: t('settings.terminalHook'), description: t('settings.terminalHookDesc') },
       { name: t('settings.dispatchHook'), description: t('settings.dispatchHookDesc') },
       { name: t('settings.alldayRemind'), description: t('settings.alldayRemindDesc') },
@@ -72,6 +74,28 @@ export class TaskVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl).setName(t('settings.hooksHeading')).setHeading();
+
+    // FR-041: where 新建项目 scaffolds. Read live by the command on each invocation, so an
+    // edit here needs no restart.
+    new Setting(containerEl)
+      .setName(t('settings.projectsFolder'))
+      .setDesc(t('settings.projectsFolderDesc'))
+      .addText((ta) =>
+        ta
+          .setPlaceholder('01 Projects')
+          .setValue(cfg.projects_folder)
+          .onChange((v) => void this.config.update({ projects_folder: v })),
+      );
+
+    new Setting(containerEl)
+      .setName(t('settings.dashboardFile'))
+      .setDesc(t('settings.dashboardFileDesc'))
+      .addText((ta) =>
+        ta
+          .setPlaceholder('Dashboard.md')
+          .setValue(cfg.dashboard_file)
+          .onChange((v) => void this.config.update({ dashboard_file: v })),
+      );
 
     new Setting(containerEl)
       .setName(t('settings.terminalHook'))

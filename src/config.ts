@@ -23,6 +23,8 @@ export interface Config {
   api_enabled: boolean; // FR-034: built-in localhost HTTP API, off by default
   api_port: number; // 127.0.0.1:<port>
   agent_tokens: AgentTokens;
+  projects_folder: string; // FR-041: where 新建项目 creates notes; '' = vault root
+  dashboard_file: string; // FR-041: root nav note the command registers in; '' = skip registering
 }
 
 export const DEFAULT_API_PORT = 39187;
@@ -37,6 +39,8 @@ export const DEFAULT_CONFIG: Config = {
   api_enabled: false,
   api_port: DEFAULT_API_PORT,
   agent_tokens: {},
+  projects_folder: '01 Projects',
+  dashboard_file: 'Dashboard.md',
 };
 
 const UI_LANGUAGES: readonly Lang[] = ['auto', 'zh-CN', 'en'];
@@ -67,6 +71,9 @@ export function normalizeConfig(raw: unknown): Config {
         ? r.api_port
         : DEFAULT_CONFIG.api_port,
     agent_tokens: { hermes: token(tokens.hermes), cc: token(tokens.cc), codex: token(tokens.codex) },
+    // FR-041: strip slashes so the paths join cleanly; '' stays '' (= vault root / skip).
+    projects_folder: typeof r.projects_folder === 'string' ? r.projects_folder.replace(/^\/+|\/+$/g, '') : DEFAULT_CONFIG.projects_folder,
+    dashboard_file: typeof r.dashboard_file === 'string' ? r.dashboard_file.replace(/^\/+|\/+$/g, '') : DEFAULT_CONFIG.dashboard_file,
   };
 }
 
