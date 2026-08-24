@@ -356,6 +356,31 @@
   cursor: help;
 }
 
+/* FR-049 one-click review decision pair. Resident only while status=review (the render gates
+   it), riding the review purple track (FR-031) with the decision colour carrying the outcome:
+   confirm = green (→ done), rework = blue (→ doing). Reuses the tv-tag chip anatomy. */
+.tv-review-act {
+  cursor: pointer;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+}
+.tv-review-act:hover {
+  background: var(--background-modifier-hover);
+  filter: brightness(1.15);
+}
+.tv-review-confirm {
+  color: var(--color-green);
+}
+.tv-review-rework {
+  color: var(--color-blue);
+}
+/* detail popover variant: a dedicated bar above the generic target chips */
+.tv-review-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 /* blocked → grayed out; waiting → amber marker */
 .tv-blocked {
   opacity: 0.55;

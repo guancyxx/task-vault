@@ -105,6 +105,23 @@ export function priorityChip(task: Pick<Task, 'priority'>): PriorityChip {
   return { tag, resident: tag === 'p0' };
 }
 
+// FR-049 review one-click: the two decisions a review-state task offers inline — confirm
+// (→ done, green) and rework (→ doing, blue). Returned only for status=review so the row
+// renders nothing in any other state (FR-046 layering: a resident triage signal, zero noise
+// otherwise). Pure — the render and the tests share this single source.
+export interface ReviewAction {
+  to: 'done' | 'doing';
+  label: string;
+  cls: string;
+}
+export function reviewActions(status: Status, t: T = ZH): ReviewAction[] {
+  if (status !== 'review') return [];
+  return [
+    { to: 'done', label: t('review.confirm'), cls: 'tv-review-confirm' },
+    { to: 'doing', label: t('review.rework'), cls: 'tv-review-rework' },
+  ];
+}
+
 // Inline actions the row triggers. The sidebar view supplies concrete handlers (TaskActions +
 // popovers). Absent (read-only) rows simply render without listeners.
 export interface RowActions {
@@ -112,6 +129,9 @@ export interface RowActions {
   reschedule(task: Task): void;
   openDetail(task: Task, evt: MouseEvent): void;
   openDoc(task: Task, path: string): void;
+  // FR-049 one-click review decision: confirm (→ done) or rework (→ doing). Wired to the
+  // setStatus seam by the sidebar view — the row never writes status itself.
+  reviewDecision(task: Task, to: 'done' | 'doing'): void;
 }
 
 // Parent-row affordance: fold toggle + x/y progress (FR-005/013).
@@ -232,6 +252,24 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
   if (blocked) {
     const names = ctx.blockSources.map((s) => s.title).join('、');
     titleRow.createSpan({ cls: 'tv-tag tv-block-src', text: t('row.blocked'), attr: { title: t('row.blockSource', { names }) } });
+  }
+
+  // FR-049 one-click review decision: two inline buttons, rendered only while the effective
+  // status is review (FR-046 layering — a resident triage signal that adds zero noise in any
+  // other state). Clicks stop propagation so the row's openDoc handler never fires; the write
+  // goes through the injected reviewDecision handler (→ TaskActions.setStatus seam).
+  for (const act of reviewActions(ctx.effectiveStatus, t)) {
+    const btn = titleRow.createSpan({
+      cls: `tv-tag tv-review-act ${act.cls}`,
+      text: act.label,
+      attr: { role: 'button', title: act.label },
+    });
+    if (a) {
+      btn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        a.reviewDecision(task, act.to);
+      });
+    }
   }
 
   // Dates row (resident): sub-task progress only — start badge moved to the hover layer.

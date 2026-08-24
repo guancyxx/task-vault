@@ -48,6 +48,10 @@ export const zh: Record<keyof typeof en, string> = {
   'action.summaryHookFailed': '总结 hook 失败：{err}',
   'action.terminalHookFailed': '终态 hook 失败：{err}',
 
+  // FR-049 review one-click decision pair (inline row + detail popover).
+  'review.confirm': '✅ 确认完成',
+  'review.rework': '↩ 打回 doing',
+
   'row.check': '完成',
   'row.waiting': '⏳ 等待中',
   'row.blocked': '⛔ 被阻塞',

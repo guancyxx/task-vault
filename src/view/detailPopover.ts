@@ -13,7 +13,7 @@ import type { Status, Task } from '../model/types';
 import type { TaskActions } from '../store/taskActions';
 import type { TaskStore } from '../store/taskStore';
 import type { MessageKey, T } from '../i18n';
-import { STATUS_META, statusLabel } from './taskRow';
+import { STATUS_META, reviewActions, statusLabel } from './taskRow';
 import { buildTaskPrompt, obsidianUri } from './taskPrompt';
 import { notifyDelegateResult, renderDelegatePanel } from './delegatePanel';
 
@@ -84,6 +84,19 @@ class DetailModal extends Modal {
     const t = this.t;
     const meta = STATUS_META[this.task.status];
     const body = this.panel(parent, t('panel.status'), meta.cls);
+    // FR-049 one-click review decision: while in review, surface the two decisions as a
+    // prominent action bar above the generic target chips — both route through setStatus
+    // (actor=user, FR-030 allows review→done / review→doing).
+    if (this.task.status === 'review') {
+      const bar = body.createDiv({ cls: 'tv-review-bar' });
+      for (const act of reviewActions(this.task.status, t)) {
+        const btn = bar.createEl('button', {
+          cls: `tv-chip tv-chip-btn tv-review-act ${act.cls}`,
+          text: act.label,
+        });
+        btn.addEventListener('click', () => this.setStatus(act.to));
+      }
+    }
     body.createSpan({
       cls: `tv-chip tv-chip-now tv-chip-${meta.cls}`,
       text: `${meta.glyph} ${statusLabel(this.task.status, t)}`,

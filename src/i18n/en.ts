@@ -54,6 +54,10 @@ export const en = {
   'action.summaryHookFailed': 'Summary hook failed: {err}',
   'action.terminalHookFailed': 'Terminal hook failed: {err}',
 
+  // FR-049 review one-click decision pair (inline row + detail popover).
+  'review.confirm': '✅ Confirm done',
+  'review.rework': '↩ Send back to doing',
+
   // Task row.
   'row.check': 'Complete',
   'row.waiting': '⏳ Waiting',
