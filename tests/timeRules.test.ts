@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Bucket, CountdownBadge } from '../src/time/timeRules';
-import { bucketOf, countdownLabel, remindMoment } from '../src/time/timeRules';
+import { bucketOf, countdownLabel, isOverdue, remindMoment } from '../src/time/timeRules';
 import { createT } from '../src/i18n';
 import type { Status, Task } from '../src/model/types';
+import { TaskStore, type VaultReader } from '../src/store/taskStore';
+import { serializeTaskFile } from '../src/util/frontmatter';
 
 const NOW = new Date(2026, 7, 19, 14, 32); // local 2026-08-19 14:32 (Wed)
 
@@ -40,6 +42,53 @@ describe('bucketOf (FR-007)', () => {
   for (const [name, t, expected] of BUCKETS) {
     it(name, () => expect(bucketOf(t, NOW)).toBe(expected));
   }
+});
+
+describe('review dual counting semantics (SC-021)', () => {
+  const cases: Array<[string, Task, Bucket, boolean]> = [
+    ['review + overdue date-only', task({ status: 'review', due: '2026-08-18' }), 'review', true],
+    ['review + overdue timed', task({ status: 'review', due: '2026-08-19T14:00' }), 'review', true],
+    ['review + today due', task({ status: 'review', due: '2026-08-19' }), 'review', false],
+    ['review + no due', task({ status: 'review' }), 'review', false],
+    ['done + overdue due', task({ status: 'done', due: '2026-08-18' }), 'done', false],
+  ];
+
+  for (const [name, value, bucket, overdue] of cases) {
+    it(name, () => {
+      expect(bucketOf(value, NOW)).toBe(bucket);
+      expect(isOverdue(value, NOW)).toBe(overdue);
+    });
+  }
+
+  it('keeps six buckets mutually exclusive when review is overdue', async () => {
+    const review = task({ id: 'review-overdue', status: 'review', due: '2026-08-18', assignee: 'cc' });
+    const files = new Map([
+      ['03 Tasks/review.md', serializeTaskFile(review, '')],
+      ['03 Tasks/today.md', serializeTaskFile(task({ id: 'today', due: '2026-08-19' }), '')],
+      ['03 Tasks/overdue.md', serializeTaskFile(task({ id: 'overdue', due: '2026-08-18' }), '')],
+      ['03 Tasks/week.md', serializeTaskFile(task({ id: 'week', due: '2026-08-20' }), '')],
+    ]);
+    const reader: VaultReader = {
+      async listTaskFiles() {
+        return [...files.keys()];
+      },
+      async read(path) {
+        const raw = files.get(path);
+        if (raw === undefined) throw new Error(`ENOENT ${path}`);
+        return raw;
+      },
+    };
+    const store = new TaskStore(reader);
+    await store.scan();
+
+    const buckets = store.bucketed(NOW);
+    expect(Object.keys(buckets)).toEqual(['review', 'inbox', 'today', 'overdue', 'week', 'done']);
+    expect(buckets.review.map((e) => e.task.id)).toEqual(['review-overdue']);
+    expect(buckets.today.map((e) => e.task.id)).not.toContain('review-overdue');
+    expect(buckets.overdue.map((e) => e.task.id)).not.toContain('review-overdue');
+    expect(buckets.week.map((e) => e.task.id)).not.toContain('review-overdue');
+    expect(Object.values(buckets).flat().filter((e) => e.task.id === 'review-overdue')).toHaveLength(1);
+  });
 });
 
 // ---------- countdownLabel (FR-008, SC-007) ----------
