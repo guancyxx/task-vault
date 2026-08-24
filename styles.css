@@ -1053,3 +1053,83 @@ button.tv-chip-btn:hover {
 .tv-form-submit:hover {
   background: var(--interactive-accent-hover);
 }
+
+/* ---------- decision points (FR-050/051) ---------- */
+/* Sidebar aggregation zone 「待你决策」: one row per task with open (unchecked) `Dn` option
+   groups. Purple left rail distinguishes "needs the human" from status rails — it is a
+   request for input, not a task state. Reuses the --tv-rail pattern with the review
+   purple token (the decision gesture IS a review-family act). */
+.tv-decision-row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 4px;
+  border-left: 3px solid rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+}
+.tv-decision-row:hover {
+  background: var(--background-modifier-hover);
+}
+.tv-decision-groups {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+}
+.tv-decision-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-normal);
+}
+
+/* Detail popover decision panel (FR-051): one button row per mutually exclusive `Dn` group. */
+.tv-decision-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+.tv-decision-group-tag {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+}
+.tv-decision-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Option button: neutral chip until picked; the checked variant keeps the settled line's
+   purple accent and is disabled — settled history is never re-tappable. */
+.tv-btn-decision {
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+.tv-btn-decision-checked {
+  border-color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+  color: rgba(var(--color-purple-rgb, 158, 122, 255), 1);
+}
+
+/* Execution-log timeline in the detail popover (FR-051): newest-first stamp + text rows. */
+.tv-log-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: var(--font-ui-small);
+}
+.tv-log-stamp {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+.tv-log-text {
+  flex: 1;
+  color: var(--text-muted);
+}

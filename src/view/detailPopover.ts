@@ -8,6 +8,8 @@
 
 import { FileSystemAdapter, Modal, Notice, type App } from 'obsidian';
 import type { EntryKind } from '../log/executionLog';
+import { parseLogEntries } from '../model/agentProgress';
+import { groupDecisionPoints, parseDecisionPoints } from '../model/decisionPoints';
 import { TRANSITIONS } from '../model/statusMachine';
 import type { Status, Task } from '../model/types';
 import type { TaskActions } from '../store/taskActions';
@@ -33,7 +35,7 @@ export function openDetail(app: App, store: TaskStore, actions: TaskActions, pat
     new Notice(t('detail.notFound'));
     return;
   }
-  new DetailModal(app, actions, path, entry.task, t).open();
+  new DetailModal(app, actions, path, entry.task, t, () => store.entryByPath(path)?.body ?? '').open();
 }
 
 // Right-click entry: same modal, opened from a row contextmenu (user request 2026-08-19).
@@ -47,7 +49,16 @@ class DetailModal extends Modal {
   // and can also feed the copied prompt.
   private instruction = '';
 
-  constructor(app: App, private actions: TaskActions, private path: string, private task: Task, private t: T) {
+  constructor(
+    app: App,
+    private actions: TaskActions,
+    private path: string,
+    private task: Task,
+    private t: T,
+    // Live body getter (FR-050): decisions and the log timeline read the CURRENT file state
+    // each render — the optimistic task copy only covers frontmatter-shaped fields.
+    private bodyOf: () => string = () => '',
+  ) {
     super(app);
   }
 
@@ -65,8 +76,10 @@ class DetailModal extends Modal {
     contentEl.addClass('tv-detail');
     this.setTitle(this.task.title);
     this.renderStatus(contentEl);
+    this.renderDecisions(contentEl);
     this.renderQuickFill(contentEl);
     this.renderDelegation(contentEl);
+    this.renderLogTimeline(contentEl);
     this.renderFooter(contentEl);
   }
 
@@ -152,6 +165,60 @@ class DetailModal extends Modal {
       if (e.key !== 'Enter' || e.isComposing) return;
       submit();
     });
+  }
+
+  // 决策点 (FR-050/051): one button per option, grouped by their `Dn` prefix. A click
+  // routes through resolveDecision (surgical one-line checkbox flip + ✅ date stamp +
+  // auto-logged kind=决策 entry, actor=user because the UI is a local-user confirmation
+  // channel). Sibling options stay clickable file-side but applyDecision refuses a
+  // second check on the same group only per-line — the mutual exclusion is protocol-level
+  // (agent writes one group per question), so we disable checked groups' buttons after
+  // a successful write. Failure notice = the line drifted; re-open after the file settles.
+  private renderDecisions(parent: HTMLElement): void {
+    const t = this.t;
+    const body = this.bodyOf();
+    const groups = groupDecisionPoints(parseDecisionPoints(body));
+    if (groups.length === 0) return; // no section or all settled — hide the panel entirely
+    const panelBody = this.panel(parent, t('detail.decisions'));
+    for (const g of groups) {
+      const row = panelBody.createDiv({ cls: 'tv-decision-group' });
+      row.createSpan({ cls: 'tv-decision-group-tag', text: g.group });
+      const btns = row.createSpan({ cls: 'tv-decision-options' });
+      for (const o of g.options) {
+        const btn = btns.createEl('button', {
+          cls: o.checked ? 'tv-btn tv-btn-decision tv-btn-decision-checked' : 'tv-btn tv-btn-decision',
+          text: o.checked ? `${o.label} ✅` : o.label,
+        });
+        btn.disabled = o.checked; // settled history — never re-tappable, never rewritten
+        if (!o.checked) {
+          btn.addEventListener('click', () => {
+            btn.disabled = true;
+            void this.actions.resolveDecision(this.path, g.group, o.label).then((ok) => {
+              if (!ok) new Notice(t('detail.decisionFailed'));
+              else new Notice(t('detail.decisionPicked').replace('{text}', `${g.group} ${o.label}`));
+              this.render(); // re-read the live body either way
+            });
+          });
+        }
+      }
+    }
+  }
+
+  // Execution-log timeline (FR-051): newest-first rows parsed straight from the CURRENT
+  // body — the file is the single source of truth, so hand-written entries show up too.
+  private renderLogTimeline(parent: HTMLElement): void {
+    const t = this.t;
+    const entries = parseLogEntries(this.bodyOf());
+    const panelBody = this.panel(parent, t('detail.logTitle'));
+    if (entries.length === 0) {
+      panelBody.createSpan({ cls: 'tv-hint', text: t('detail.logEmpty') });
+      return;
+    }
+    for (const e of entries) {
+      const row = panelBody.createDiv({ cls: 'tv-log-row' });
+      row.createSpan({ cls: 'tv-log-stamp', text: e.stamp });
+      row.createSpan({ cls: 'tv-log-text', text: e.text.split('\n').slice(1).join(' ').trim() || e.text });
+    }
   }
 
   // 委派 (FR-015): agent select + instruction → 委派 section + assignee/dispatched + dispatch hook.

@@ -9,7 +9,7 @@ import { parseTaskFile, serializeTaskFile, appendDelegationRound, upsertSection 
 import type { Source, Status } from '../model/types';
 import { captureToTask, slugify, type Capture } from '../view/captureParse';
 import { isLibraryPath, taskDir, taskPath as computeTaskPath } from './taskPaths';
-import type { SectionWriter } from './taskActions';
+import type { DecisionWriter, SectionWriter } from './taskActions';
 import { DELEGATE_HEADING } from './taskActions';
 import type { LogWriter, TaskStore, VaultReader } from './taskStore';
 import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
@@ -23,7 +23,7 @@ export function isTaskPath(path: string): boolean {
   return isLibraryPath(path);
 }
 
-export class VaultSource implements VaultReader, LogWriter, SectionWriter, ReviewGateWriter {
+export class VaultSource implements VaultReader, LogWriter, SectionWriter, DecisionWriter, ReviewGateWriter {
   constructor(private app: App) {}
 
   async listTaskFiles(): Promise<string[]> {
@@ -87,6 +87,24 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Revie
       const body = fence ? data.slice(fence[0].length) : data;
       return prefix + appendDelegationRound(body, DELEGATE_HEADING, instruction, new Date());
     });
+  }
+
+  // Body-only line-exact transform (used for the `## 决策点` checkbox flip, FR-050).
+  // The transform returns null to signal "nothing to apply" (file drifted / already
+  // checked) — then the file is left byte-identical and we report false. Frontmatter
+  // fence kept verbatim, same as appendLog.
+  async modifyBody(path: string, transform: (body: string) => string | null): Promise<boolean> {
+    let applied = false;
+    await this.app.vault.process(this.mustFile(path), (data) => {
+      const fence = /^---\n[\s\S]*?\n---\n?/.exec(data);
+      const prefix = fence ? fence[0] : '';
+      const body = fence ? data.slice(fence[0].length) : data;
+      const next = transform(body);
+      if (next === null) return data;
+      applied = true;
+      return prefix + next;
+    });
+    return applied;
   }
 
   // Create a task file from a parsed capture (FR-012). The 'create' vault event then flows back

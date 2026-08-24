@@ -143,6 +143,40 @@ not later than the done write ∧ not a system injection). Failed verification =
 5. The task prompt handed to the agent should include: task file path (absolute or
    obsidian:// URI), the instruction, and this protocol (or a pointer to this file).
 
+## Decision-point write protocol (FR-050)
+
+When the work hits a fork the USER must settle (not a technical choice the agent can make
+alone), write the options into a `## 决策点` body section — one checkbox line per option,
+prefixed by a `Dn` group id:
+
+```
+## 决策点
+- [ ] D1 方案A：本地缓存
+- [ ] D1 方案B：直连远端
+```
+
+Rules:
+
+1. **One `Dn` per question.** Lines sharing the same `Dn` prefix are one mutually exclusive
+   option group — exactly one of them gets checked. Number groups sequentially within the
+   file (`D1`, `D2`, …); reuse a number only when appending options to that same question.
+2. **Line format is load-bearing**: `- [ ] Dn <option description>` (a space after `]` and
+   after the group id). The plugin's parser tolerates junk lines but only this shape is read.
+3. **The check gesture belongs to the user.** Checking flips the line to
+   `- [x] Dn <描述> ✅ YYYY-MM-DD` (the plugin UI does the flip + date stamp and auto-logs
+   a `**决策**` entry with `actor=user`). Agents never pre-check an option for the user —
+   not even the one they recommend; state the recommendation in `## 任务描述` or a log
+   entry instead.
+4. **Checked lines are settled history — never rewrite them.** Do not edit, re-order,
+   re-date, or un-check a `- [x]` decision line (same iron rule as 执行记录). If the user
+   changes their mind, add a NEW option line under a new `Dn` group and let them check it.
+5. The section is optional and append-only in spirit: create it when the first fork appears,
+   keep it after the choice is made (the checked line is the audit trail), and drop the
+   section only on task archival.
+6. Non-terminal tasks with an unchecked option surface in the sidebar 「待你决策」 zone —
+   one row per task, clickable into the detail popover's decision buttons. A task whose
+   every group is checked drops out of the zone automatically.
+
 ## Local HTTP API
 
 The plugin ships a built-in localhost HTTP API so agents can route writes through the state

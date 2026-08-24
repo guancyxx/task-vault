@@ -9,6 +9,7 @@
 import { Notice, TFile, type App } from 'obsidian';
 import { createT, type T } from '../i18n';
 import type { FireResult, HookRunner } from '../hooks/hookRunner';
+import { applyDecision, decisionLogText, stampDate } from '../model/decisionPoints';
 import type { EntryInput, EntryKind } from '../log/executionLog';
 import { completeTransition, isLegalTransition, transition } from '../model/statusMachine';
 import type { Actor, Status, Task } from '../model/types';
@@ -26,6 +27,13 @@ export interface SectionWriter {
 // The delegation block heading — shared by the pure round-append layer (frontmatter.ts) callers.
 export const DELEGATE_HEADING = '## 委派';
 
+// Line-exact body transform (the `## 决策点` checkbox flip, FR-050). Receives the whole
+// body, returns the whole body with exactly one line replaced — VaultSource implements it
+// over vault.process so the frontmatter fence stays verbatim and no other line moves.
+export interface DecisionWriter {
+  modifyBody(path: string, transform: (body: string) => string | null): Promise<boolean>;
+}
+
 // Default (zh) translator so the constructor stays a pure-logic default for unit tests.
 const ZH: T = createT('zh-CN');
 
@@ -33,7 +41,7 @@ export class TaskActions {
   constructor(
     private app: App,
     private store: TaskStore,
-    private body: LogWriter & SectionWriter,
+    private body: LogWriter & SectionWriter & DecisionWriter,
     private hooks: HookRunner,
     // Plugin UI is an explicit local-user confirmation channel. Tests/automation may
     // inject an agent actor, which is then constrained by the FR-030 machine guard.
@@ -118,6 +126,19 @@ export class TaskActions {
     const entry: EntryInput = { ts: this.now(), actor: this.actor, text };
     if (kind) entry.kind = kind;
     await this.body.appendLog(path, entry);
+  }
+
+  // Resolve a decision point (FR-050): flip the option line to `- [x] … ✅ date` (surgical,
+  // one line — sibling options and hand-written prose untouched) and auto-log a kind=决策
+  // entry with the `Dn <所选选项>` text through the same canonical appendQuick seam.
+  // The log entry only lands when the checkbox write actually applied (null = drifted
+  // file — already checked, line moved, or malformed; nothing is logged then).
+  async resolveDecision(path: string, group: string, label: string): Promise<boolean> {
+    const now = this.now();
+    const applied = await this.body.modifyBody(path, (body) => applyDecision(body, group, label, stampDate(now)));
+    if (!applied) return false;
+    await this.appendQuick(path, decisionLogText(group, label), '决策');
+    return true;
   }
 
   // Delegation (FR-015): write assignee + dispatched, drop the instruction into `## 委派`, fire hook.

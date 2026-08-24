@@ -9,6 +9,8 @@ import type { Entry, TaskStore } from '../store/taskStore';
 import type { Bucket } from '../time/timeRules';
 import { createT, tArray, type MessageKey, type T } from '../i18n';
 import { agentProgress } from '../model/agentProgress';
+import { openDecisionPoints } from '../model/decisionPoints';
+import { TERMINAL_STATUSES } from '../model/types';
 import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
 import { openDetailAt } from './detailPopover';
@@ -103,6 +105,7 @@ export class TaskVaultView extends ItemView {
       }
     }
     this.renderCaptureBox(root);
+    this.renderDecisionZone(root);
     const grouped = this.store.bucketed(this.now());
 
     for (const { bucket, labelKey } of SECTIONS) {
@@ -171,6 +174,27 @@ export class TaskVaultView extends ItemView {
     if (captureState) {
       const input = root.querySelector('input.tv-capture') as HTMLInputElement | null;
       if (input) restoreCapture(input, captureState);
+    }
+  }
+
+  private renderDecisionZone(root: HTMLElement): void {
+    const t = this.getT();
+    const pending = decisionZoneEntries(this.store);
+    const section = root.createDiv({ cls: 'tv-section tv-section-decisions' });
+    const header = section.createDiv({ cls: 'tv-section-header' });
+    header.createSpan({ cls: 'tv-section-title', text: t('sidebar.decisions') });
+    header.createSpan({ cls: countClass('review', pending.length), text: String(pending.length) });
+    if (pending.length === 0) return; // zone stays as a quiet count-only strip when idle
+    const body = section.createDiv({ cls: 'tv-section-body' });
+    for (const p of pending) {
+      const row = body.createDiv({ cls: 'tv-decision-row' });
+      row.createSpan({ cls: 'tv-decision-groups', text: p.groups.join(' ') });
+      row.createSpan({ cls: 'tv-decision-title', text: p.task.title });
+      if (this.actions) {
+        row.addEventListener('click', (evt) =>
+          openDetailAt(this.app, this.store, this.actions!, p.path, evt, this.getT()),
+        );
+      }
     }
   }
 
@@ -320,4 +344,32 @@ function projectCount(roots: Entry[], project: string, uncat: string): number {
     if (p === project) n++;
   }
   return n;
+}
+
+// FR-050 「待你决策」aggregation zone: one line per non-terminal task whose `## 决策点`
+// section still carries an unchecked option. Pure — the render maps it to DOM (clickable rows
+// opening the detail popover, where the actual decision gesture lives).
+export interface DecisionPending {
+  path: string;
+  task: Entry['task'];
+  /** Distinct open `Dn` groups on the task, in section order — shown as the row's prefix. */
+  groups: string[];
+}
+
+// Terminal tasks never nag (a done task's undecided points are settled history), and a task
+// whose every group is checked drops out of the zone — that IS the completion signal.
+export function decisionZoneEntries(store: Pick<TaskStore, 'allEntries'>): DecisionPending[] {
+  const out: DecisionPending[] = [];
+  for (const e of store.allEntries()) {
+    if (TERMINAL_STATUSES.includes(e.task.status)) continue;
+    const groups = [...new Set(openDecisionPoints(e.body).map((o) => o.group))];
+    if (groups.length === 0) continue;
+    out.push({ path: e.path, task: e.task, groups });
+  }
+  // Most urgent first (due, then created, then id) — same ordering key the bucket sort uses.
+  return out.sort((a, b) => {
+    const ka = a.task.due ?? a.task.created;
+    const kb = b.task.due ?? b.task.created;
+    return ka === kb ? a.task.id.localeCompare(b.task.id) : ka < kb ? -1 : 1;
+  });
 }
