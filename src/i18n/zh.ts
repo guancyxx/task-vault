@@ -237,4 +237,17 @@ export const zh: Record<keyof typeof en, string> = {
 
   'sidebar.agenda': '🗓 日程',
   'cmd.openAgenda': '日程面板',
+
+  // 决策点（FR-050/051）：侧边栏聚合区、详情弹层按钮组、执行记录时间线。
+  'sidebar.decisions': '⚖ 待你决策',
+  'sidebar.decisionsEmpty': '没有待决策项',
+  'detail.decisions': '决策点',
+  'detail.decisionPicked': '已决策：{text}',
+  'detail.decisionFailed': '决策行已在磁盘上变化——请重开后再试',
+  'detail.logTitle': '执行记录',
+  'detail.logEmpty': '暂无记录',
+  'log.kind.decision': '决策',
+  'log.kind.comment': '评论',
+  'log.kind.blocker': '卡点',
+  'log.migration': '{from} → {to}',
 };

@@ -260,4 +260,18 @@ export const en = {
   // Chrome links + commands for the agenda/calendar (FR-036).
   'sidebar.agenda': '🗓 Agenda',
   'cmd.openAgenda': 'Agenda',
+
+  // Decision points (FR-050/051): sidebar aggregation zone, detail-popover button
+  // groups, and the execution-log timeline rendering.
+  'sidebar.decisions': '⚖ Your decisions',
+  'sidebar.decisionsEmpty': 'No open decision points',
+  'detail.decisions': 'Decision points',
+  'detail.decisionPicked': 'Decided: {text}',
+  'detail.decisionFailed': 'Decision line changed on disk — re-open and retry',
+  'detail.logTitle': 'Execution log',
+  'detail.logEmpty': 'No entries yet',
+  'log.kind.decision': 'Decision',
+  'log.kind.comment': 'Comment',
+  'log.kind.blocker': 'Blocker',
+  'log.migration': '{from} → {to}',
 };
