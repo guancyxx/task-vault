@@ -46,6 +46,41 @@ The eight states remain explicit and portable in frontmatter:
 | `done` | Completed | ✓ dimmed |
 | `cancelled` | Cancelled with history preserved | ✕ dimmed, strikethrough |
 
+## The workflow
+
+The plugin ships with a working discipline — a set of conventions, not
+enforcements. Everything stays plain Markdown with zero lock-in; adopt what
+fits.
+
+- **Capture fast, shape slowly.** Everything lands in `inbox` first. A good
+  title is a short verb phrase that names the job (`修 neutralizeFence 正则容错`,
+  `Ship PR #1139 to dev`); context belongs in the body's task-description
+  section, and project ownership in the `project` field — never piled into
+  the title.
+- **Every actionable task deserves a deadline.** When no deadline is stated,
+  the convention is today 22:00 — never silently pushed to tomorrow. A `due`
+  date means all-day, a datetime means a minute-precise hard cutoff.
+  Rescheduling happens only as an explicit human decision.
+- **Overdue never disappears.** An expired task is not auto-postponed or
+  hidden; the deadline passing only raises the alarm and never touches
+  `status`. Agents and scripts never rewrite `due` on a non-terminal task —
+  renegotiating a deadline is a decision, so it gets written down as one.
+- **Done stays where it is.** Task files are never archived or moved.
+  done/cancelled tasks remain in place with their full history; distilling
+  knowledge out of them is a separate, additive concern.
+- **The execution log is the memory.** Entries are newest-first and
+  append-only; history is never rewritten. Decisions and blockers are logged
+  when they happen, not reconstructed afterwards — reviewing a task means
+  reading its timeline, not replaying your memory of it.
+- **Three passes a day.** Triage `inbox` (add `due`/`project`, or kill the
+  task), work from Today (countdown badges tell you what's about to bite),
+  scan This week. Clear the red Overdue bucket first.
+- **Humans decide what "done" means.** Delegation writes the instruction into
+  the task file and hands it to an agent; the agent reads the file like a
+  spec, logs as it works, and may only deliver to `review`. Confirming
+  `done` stays a human act — a click in Obsidian, or a checked Reminder on
+  your phone.
+
 ## Features
 
 - **Sidebar cockpit** — capture bar (`!high @project #tag 明天3点`), Today / Overdue /
@@ -253,6 +288,18 @@ agent 的一等委派能力，同时保留纯 Markdown 的可移植性。
 | `blocked` | 被依赖卡住（推导状态） | ⛔ 置灰 |
 | `done` | 已完成 | ✓ 暗淡 |
 | `cancelled` | 已取消但保留记录 | ✕ 暗淡删除线 |
+
+## The workflow · 任务管理思路
+
+插件自带一套运行纪律——它们是约定，不是强制。一切保持纯 Markdown、零锁定，按需取用。
+
+- **捕获快、成型慢。** 任何任务先进 `inbox`。好标题是直说任务重心的短动词短语（如「修 neutralizeFence 正则容错」「部署 PR #1139 到 dev」）；上下文写进正文的任务描述区，项目归属写 `project` 字段——都不堆进标题。
+- **可执行任务都该有截止时间。** 未言明截止时间时，约定为当天 22:00——绝不静默推到明天。`due` 是日期即全天，是 datetime 即分钟级硬截止。改期只发生在人显式决策时。
+- **逾期不消失。** 过期任务不自动顺延、不隐藏；DDL 到点只提醒报警，绝不自动改状态。agent 与脚本绝不改写非终态任务的 `due`——重新谈截止时间是一次决策，就该按决策记录下来。
+- **done 就地保留。** 任务文件永不归档、永不移动。done/cancelled 任务留在原位、保留完整历史；从中提炼知识是另一层独立的事。
+- **执行记录即记忆。** 条目最新在前、只追加不改写，历史永不重写。决策与卡点在发生时就记录，而不是事后重建——复核一个任务 = 读它的时间线，不是靠回忆。
+- **每天三遍视角。** 加工 `inbox`（补 `due`/`project`，或砍掉）；从「今天」区干活（倒计时徽章告诉你什么快到期了）；扫一遍「本周」。红色的「过期」区最先清。
+- **「什么算做完」由人裁决。** 委派把指令写进任务文件、交给 agent；agent 像读规格一样读它、边做边记，只能交付到 `review`。确认 `done` 始终是人的动作——在 Obsidian 里点一下，或在手机上勾掉对应的 Reminder。
 
 ## Features · 功能
 
