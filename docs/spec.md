@@ -119,6 +119,7 @@ v0.3 增补（对应 FR-031~037）：
 - SC-018 文档：README 含「Apple Reminders sync」章节与权限披露章节；无内部路径/个人 cron 泄漏（发布前 grep 扫描）
 - SC-019 双语 README：语言切换锚点可用（点击跳转对应语言区）；九个固定一级章节（Why/Features/For AI agents/Apple Reminders sync/Permissions & capabilities/Install/Data model/Limitations/License）在两版中一一对应（比对一级标题数与锚点）；英文版含 H9 全部两章内容；无内部信息泄漏
 - SC-020 i18n：设置页语言下拉（auto/zh-CN/en）生效——切换后无需重启：侧边栏分区标题、图例、弹窗、命令面板命令名、Notice 在下一次 render/重开面板即变语言；auto 模式跟随 Obsidian 界面语言、未知语言回退 en；任务文件数据层标题（## 执行记录 等）与条目格式在任何语言下不变；npm test 含字典键完整性测试（en/zh 键集相等）
+- SC-021 review 双统计口径（PR#3 审计债定稿）：分区口径（bucketOf）与统计口径并存不悖——①侧边栏六分区互斥：status=review 抢先返回 review 分区，today/overdue/week 分区计数不含 review（展示语义）；②统计口径（isOverdue/projectStats/FR-035 面板）按 due 覆盖全部非终态，review 照常计入过期数/开放数。review+过期 due 须同时满足 bucketOf=review ∧ isOverdue=true；聚合测试按本 SC 断言两口径并存结果
 
 ## Requirements（FR，稳定 ID）
 

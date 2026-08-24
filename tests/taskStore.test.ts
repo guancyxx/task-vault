@@ -226,3 +226,122 @@ describe('groupSortKey execution ordering (FR-028/030)', () => {
   });
 
 });
+
+describe('groupSortKey full fallback chain (FR-028/030 audit debt)', () => {
+  function entry(id: string, status: Status = 'todo', body = '', extra: Partial<Task> = {}): Entry {
+    return {
+      path: `03 Tasks/${id}.md`,
+      task: { id, title: id, status, created: '2026-08-19T09:00', project: 'same', ...extra },
+      body,
+    };
+  }
+
+  const sortedIds = (entries: Entry[]): string[] => entries.sort(groupSortKey).map((e) => e.task.id);
+
+  it('uses project before every later key', () => {
+    const first = entry('first', 'inbox', '', { project: '甲', priority: 'low', due: '2026-08-30' });
+    const second = entry('second', 'review', '', { project: '乙', priority: 'high', due: '2026-08-01' });
+    expect(sortedIds([second, first])).toEqual(['first', 'second']);
+  });
+
+  it('uses execution status when project is equal', () => {
+    const review = entry('review', 'review', '', { priority: 'low', due: '2026-08-30' });
+    const todo = entry('todo', 'todo', '', { priority: 'high', due: '2026-08-01' });
+    expect(sortedIds([todo, review])).toEqual(['review', 'todo']);
+  });
+
+  it('uses priority when project and status are equal', () => {
+    const high = entry('high', 'todo', '', { priority: 'high', due: '2026-08-30' });
+    const low = entry('low', 'todo', '', { priority: 'low', due: '2026-08-01' });
+    expect(sortedIds([low, high])).toEqual(['high', 'low']);
+  });
+
+  it('uses due when project, status, and priority are equal', () => {
+    const early = entry('early', 'todo', '', { due: '2026-08-20', created: '2026-08-19T10:00' });
+    const late = entry('late', 'todo', '', { due: '2026-08-21', created: '2026-08-18T10:00' });
+    expect(sortedIds([late, early])).toEqual(['early', 'late']);
+  });
+
+  it('uses created when both tasks have no due', () => {
+    const early = entry('early-created', 'todo', '', { created: '2026-08-18T10:00' });
+    const late = entry('late-created', 'todo', '', { created: '2026-08-19T10:00' });
+    expect(sortedIds([late, early])).toEqual(['early-created', 'late-created']);
+  });
+
+  it('uses id when due and created are equal', () => {
+    const a = entry('a', 'todo', '', { due: '2026-08-20', created: '2026-08-19T10:00' });
+    const b = entry('b', 'todo', '', { due: '2026-08-20', created: '2026-08-19T10:00' });
+    expect(sortedIds([b, a])).toEqual(['a', 'b']);
+  });
+
+  it('orders every execution weight, including working waiting and dispatched variants', () => {
+    const accepted = '## 执行记录\n- 2026-08-20 11:00 · `cc`\n  接单：开始执行\n';
+    const stuckBody =
+      '## 执行记录\n- 2026-08-20 12:00 · **卡点** · `cc`\n  等待权限\n\n' +
+      '- 2026-08-20 11:00 · `cc`\n  接单：开始执行\n';
+    const entries = [
+      entry('inbox', 'inbox'),
+      entry('todo', 'todo'),
+      entry('todo-dispatched', 'todo', '', { assignee: 'cc', dispatched: '2026-08-20T10:00' }),
+      entry('doing-dispatched', 'doing', '', { assignee: 'cc', dispatched: '2026-08-20T10:00' }),
+      entry('stuck', 'doing', stuckBody, { assignee: 'cc' }),
+      entry('waiting-working', 'waiting', accepted, { assignee: 'cc' }),
+      entry('doing', 'doing'),
+      entry('review', 'review'),
+    ];
+    expect(sortedIds(entries)).toEqual([
+      'review',
+      'doing',
+      'waiting-working',
+      'stuck',
+      'doing-dispatched',
+      'todo-dispatched',
+      'todo',
+      'inbox',
+    ]);
+  });
+
+  it('groups missing project/tags under ~ and derives repo tags without merging sources', () => {
+    const named = entry('named', 'todo', '', { project: '!named' });
+    const unnamedA = entry('unnamed-a', 'todo', '', { project: undefined, tags: undefined });
+    const unnamedB = entry('unnamed-b', 'todo', '', { project: undefined, tags: [] });
+    const repo = entry('repo', 'todo', '', { project: undefined, tags: ['other', 'repo/-repository'] });
+    const explicit = entry('explicit', 'todo', '', { project: '!explicit', tags: undefined });
+
+    expect(sortedIds([unnamedB, repo, explicit, unnamedA, named])).toEqual([
+      'repo',
+      'explicit',
+      'named',
+      'unnamed-a',
+      'unnamed-b',
+    ]);
+  });
+
+  it('keeps the done bucket chronological and excludes review', async () => {
+    vault.set('03 Tasks/later.md', file({
+      id: 'original-doing',
+      status: 'done',
+      due: '2026-08-20',
+      completed: '2026-08-19T12:00',
+      assignee: 'cc',
+    }));
+    vault.set('03 Tasks/earlier.md', file({
+      id: 'original-inbox',
+      status: 'done',
+      due: '2026-08-18',
+      completed: '2026-08-19T13:00',
+    }));
+    vault.set('03 Tasks/review.md', file({
+      id: 'needs-review',
+      status: 'review',
+      due: '2026-08-17',
+      assignee: 'cc',
+    }));
+    await store.scan();
+
+    const buckets = store.bucketed(NOW);
+    expect(buckets.done.map((e) => e.task.id)).toEqual(['original-inbox', 'original-doing']);
+    expect(buckets.done.map((e) => e.task.id)).not.toContain('needs-review');
+    expect(buckets.review.map((e) => e.task.id)).toEqual(['needs-review']);
+  });
+});

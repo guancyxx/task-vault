@@ -1,0 +1,203 @@
+{
+  "comment": "PR #3 audit debt corpus. D1 continuation-only stuck differs from audit headline matching; D2 todo display accepts any historical acceptance while backstop requires after-baseline acceptance; D3 TS requires acceptance before stuck while audit does not.",
+  "cases": [
+    {
+      "name": "accept-old-single-line",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 [cc] 接单：开始执行\n",
+      "expect": { "tsPhase": "working", "tsLastActivity": "2026-08-20 11:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "accept-continuation-canonical",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 · **todo→doing** · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "working", "tsLastActivity": "2026-08-20 11:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "accept-prose-continuation",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 · `cc`\n  今天接单了，先调研\n",
+      "expect": { "tsPhase": "working", "tsLastActivity": "2026-08-20 11:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "unstamped-line-before-first-entry-dropped",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 接单：早于首条时间戳条目\n\n- 2026-08-20 09:00 · `cc`\n  普通进展\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "stuck-headline-newest",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · **卡点** · `cc`\n  等待权限\n\n- 2026-08-20 11:00 · **todo→doing** · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "stuck", "tsLastActivity": "2026-08-20 12:00", "backstopAny": true, "backstopSince": true, "auditStuck": true }
+    },
+    {
+      "name": "stuck-continuation-audit-blindspot",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · `cc`\n  卡点：缺证书\n\n- 2026-08-20 11:00 · **todo→doing** · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "stuck", "tsLastActivity": "2026-08-20 12:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "stuck-not-newest",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 13:00 · `cc`\n  正常推进\n\n- 2026-08-20 12:00 · **卡点** · `cc`\n  等待权限\n\n- 2026-08-20 11:00 · **todo→doing** · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "working", "tsLastActivity": "2026-08-20 13:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "accept-outside-log-section",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 委派\n\n派给 cc，等接单\n\n## 执行记录\n\n- 2026-08-20 10:30 · `cc`\n  普通进展\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "no-log-section",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "普通散文提到接单，但没有执行记录标题。\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "todo-old-accept-drift",
+      "status": "todo",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-19 18:00 · `cc`\n  接单：第一轮领取\n\n- 2026-08-19 17:00 · `hermes`\n  派发备注\n",
+      "expect": { "tsPhase": null, "tsLastActivity": null, "backstopAny": true, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "todo-fresh-accept",
+      "status": "todo",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": null, "tsLastActivity": null, "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "todo-dispatched-no-accept",
+      "status": "todo",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "todo-auto-already-accepted",
+      "status": "todo",
+      "assignee": "cc",
+      "dispatched": null,
+      "since": null,
+      "body": "## 执行记录\n\n- 2026-08-19 18:00 · `cc`\n  接单：自动任务已领取\n",
+      "expect": { "tsPhase": null, "tsLastActivity": null, "backstopAny": true, "backstopSince": null, "auditStuck": false }
+    },
+    {
+      "name": "doing-no-accept-with-dispatched",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 · `cc`\n  普通进展\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "waiting-accept-working",
+      "status": "waiting",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "working", "tsLastActivity": "2026-08-20 11:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "waiting-stuck-newest",
+      "status": "waiting",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · **卡点** · `cc`\n  等待权限\n\n- 2026-08-20 11:00 · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "stuck", "tsLastActivity": "2026-08-20 12:00", "backstopAny": true, "backstopSince": true, "auditStuck": true }
+    },
+    {
+      "name": "review-status-preempts",
+      "status": "review",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · **卡点** · `cc`\n  等待权限\n\n- 2026-08-20 11:00 · `cc`\n  接单：开始执行\n",
+      "expect": { "tsPhase": "review", "tsLastActivity": null, "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "self-task-no-phase",
+      "status": "doing",
+      "assignee": "user",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · **卡点** · `user`\n  接单后等待权限\n",
+      "expect": { "tsPhase": null, "tsLastActivity": null, "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "done-terminal",
+      "status": "done",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · **卡点** · `cc`\n  接单后等待权限\n",
+      "expect": { "tsPhase": null, "tsLastActivity": null, "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "empty-log-section",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": false }
+    },
+    {
+      "name": "second-round-accept",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:30",
+      "since": "2026-08-20T10:30",
+      "body": "## 执行记录\n\n- 2026-08-20 11:00 · `cc`\n  接单：第二轮领取\n\n- 2026-08-20 10:30 · `hermes`\n  补派备注\n\n- 2026-08-19 18:00 · `cc`\n  接单：第一轮领取\n",
+      "expect": { "tsPhase": "working", "tsLastActivity": "2026-08-20 11:00", "backstopAny": true, "backstopSince": true, "auditStuck": false }
+    },
+    {
+      "name": "stuck-without-accept",
+      "status": "doing",
+      "assignee": "cc",
+      "dispatched": "2026-08-20T10:00",
+      "since": "2026-08-20T10:00",
+      "body": "## 执行记录\n\n- 2026-08-20 12:00 · **卡点** · `cc`\n  等待权限\n",
+      "expect": { "tsPhase": "dispatched", "tsLastActivity": null, "backstopAny": false, "backstopSince": false, "auditStuck": true }
+    }
+  ]
+}
