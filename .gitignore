@@ -6,4 +6,4 @@ __pycache__/
 *.pyc
 .pytest_cache/
 AUDIT.md
-.pr-body-h13b.md
+.pr-body-*.md
