@@ -7,6 +7,7 @@
 
 | # | 旧链路 | 退役动作 | 状态 | 证据 |
 |---|--------|----------|------|------|
+| 0 | tv-archive 归档链（scripts/archive_daily.py + ~/.hermes/scripts/tv-archive.sh，调用方失考） | **2026-08-24 退役**：与规范 08-20「任务文件不再归档、done 就地保留」冲突（107 张终态卡被违规挪入 98 archive/03 Tasks/）。删脚本+测试+包装器；107 张卡已全部恢复原位（mtime 保持 108/108）；source 的 timeRules.ts 注释同步修正 | ✅ | 本行 + 处置tv-archive归档与08-20新规冲突.md 任务卡；恢复后 reminders-sync dry-run actions=0 created=0（无建提醒风暴） |
 | 1 | daily-github-watch（e409802cd6b1，04:00） | prompt 改写：产出 Task Vault 任务文件，不再写文本行 | ✅ | 08-21 产出 4 个合规任务文件（`03 Tasks/github-watch/2026-08-21/`），frontmatter + 执行记录 + mirror 齐全 |
 | 2 | 夜间复盘（34ff6e6e4ded，01:30） | prompt 改写：查漏补缺建 `[遗漏]` 任务文件；执行逾期铁律（不改 due，只追加 [逾期] 记录） | ✅ | 08-21 run：`阅读-hermes-更新-f0ffcbc.md`、`早会-2条-action-item-归属确认.md`（均 _未分类，合规格式）；due 原样保留 |
 | 3 | 早上巡查（2bbbba1b1330，05:30） | prompt 改写：巡查用 frontmatter status/due/completed | ✅ | 08-21 run 报告：due 今天 9 条列举正确，「推送 due untouched」 |

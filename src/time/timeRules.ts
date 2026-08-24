@@ -84,8 +84,8 @@ export function bucketOf(task: Task, now: Date): Bucket {
   return 'week';
 }
 
-// A terminal task belongs in 今日完成 only when it completed today (older ones are archived
-// nightly into 98 archive — see archive_daily.py).
+// A terminal task belongs in 今日完成 only when it completed today (older terminal
+// tasks stay in place under 03 Tasks/ — archiving was retired 2026-08-24).
 export function completedToday(task: Task, now: Date): boolean {
   if (!task.completed) return false;
   return task.completed.slice(0, 10) === dayStr(now);
