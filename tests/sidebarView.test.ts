@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countClass, projectCount, restoreCapture, snapshotCapture } from '../src/view/sidebarView';
+import { countClass, projectCount, projectGroups, restoreCapture, snapshotCapture } from '../src/view/sidebarView';
 import { UNCATEGORIZED } from '../src/store/taskPaths';
 import type { Entry } from '../src/store/taskStore';
 import type { Task } from '../src/model/types';
@@ -120,5 +120,32 @@ describe('projectCount wikilink grouping key', () => {
     ];
     expect(projectCount(roots, UNCATEGORIZED, UNCAT_LABEL)).toBe(1);
     expect(projectCount(roots, '未分类', UNCAT_LABEL)).toBe(1);
+  });
+
+  it('projectGroups keys boundaries on the stable pf — colliding display names stay separate groups', () => {
+    // Re-audit 08-25: the render loop's group boundary must compare pf, not the localized
+    // display name — otherwise a project literally named 未分类 would merge with the
+    // uncategorized cluster (identical display names, one divider, shared fold state).
+    const roots = [
+      entry('named-uncat', { project: '未分类' }),
+      entry('none', { project: undefined }), // displays as 未分类 too
+      entry('plain', { project: '学习' }),
+    ];
+    const groups = projectGroups(roots, 'today');
+    expect(groups.map((g) => g.pf)).toEqual(['未分类', UNCATEGORIZED, '学习']);
+    expect(groups.map((g) => g.rows.length)).toEqual([1, 1, 1]);
+    // fold keys differ even when display names collide
+    expect(groups[0].key).not.toBe(groups[1].key);
+  });
+
+  it('projectGroups merges wikilink and bare spellings into one consecutive run', () => {
+    const roots = [
+      entry('bare', { project: '学习' }),
+      entry('link', { project: '[[学习]]' }),
+    ];
+    const groups = projectGroups(roots, 'today');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].pf).toBe('学习');
+    expect(groups[0].rows).toHaveLength(2);
   });
 });

@@ -138,30 +138,24 @@ export class TaskVaultView extends ItemView {
         continue;
       }
       // Project subgroups (user request 2026-08-19): rows are already group-sorted by
-      // project+priority; insert a clickable divider whenever the project changes. Fold state
-      // is per (bucket, project) — independent across sections — and defaults to folded.
-      let lastProject: string | null = null;
-      let currentCollapsed = false;
+      // project+priority; insert a clickable divider per consecutive run of the stable
+      // projectFolder key (see projectGroups). Fold state is per (bucket, project) —
+      // independent across sections — and defaults to folded.
       const uncat = t('sidebar.uncategorized');
-      for (const e of roots) {
-        // Wikilink-stripped grouping key: project "[[学习]]" and bare 学习 must land in ONE group.
-        // projectFolder falls back to the UNCATEGORIZED constant ('_未分类') when a task has no
-        // project. The fold key uses the STABLE pf (audit 08-25: fold state survives a language
-        // switch and can never collide with a real project that happens to equal the localized
-        // uncat label); the localized label is display-only.
-        const pf = projectFolder(e.task);
-        const proj = pf === UNCATEGORIZED ? uncat : pf;
-        if (proj !== lastProject) {
-          lastProject = proj;
-          // JSON-encoded [bucket, project] composite key — no control-char separator, and
-          // safe even when a project name contains the delimiter (Scorecard hygiene, FR-033).
-          const key = JSON.stringify([bucket, pf]);
-          currentCollapsed = !this.expandedProjects.has(key); // default folded
+      let currentCollapsed = false;
+      for (const g of projectGroups(roots, bucket)) {
+        // Wikilink-stripped grouping key: project "[[学习]]" and bare 学习 must land in ONE
+        // group; the localized uncat label is display-only and can never merge groups (audit
+        // 08-25 — not even when a real project's name equals the localized label).
+        const proj = g.pf === UNCATEGORIZED ? uncat : g.pf;
+        currentCollapsed = !this.expandedProjects.has(g.key); // default folded
+        {
           const div = body.createDiv({ cls: 'tv-project-divider' });
           div.toggleClass('tv-collapsed', currentCollapsed);
           div.createSpan({ cls: 'tv-project-fold', text: currentCollapsed ? '▸' : '▾' });
           div.createSpan({ cls: 'tv-project-name', text: proj });
-          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, pf, uncat)) });
+          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, g.pf, uncat)) });
+          const key = g.key;
           div.addEventListener('click', () => {
             if (this.expandedProjects.has(key)) this.expandedProjects.delete(key);
             else this.expandedProjects.add(key);
@@ -169,7 +163,7 @@ export class TaskVaultView extends ItemView {
           });
         }
         if (currentCollapsed) continue;
-        this.renderRowTree(body, e, false);
+        for (const e of g.rows) this.renderRowTree(body, e, false);
       }
     }
 
@@ -336,6 +330,26 @@ function isComposing(input: HTMLInputElement): boolean {
 export function pickExample(xs: readonly string[], rng: () => number): string {
   if (xs.length === 0) return '';
   return xs[Math.floor(rng() * xs.length)];
+}
+
+// Project subgroups for one bucket's rows: consecutive runs of the STABLE projectFolder key.
+// Pure and exported so the render-loop grouping semantics are unit-testable directly (audit
+// 08-25: the group boundary must key on pf, never on the localized display name — a real
+// project named like the uncat label must NOT merge with the uncategorized group).
+export interface ProjectGroup {
+  pf: string; // stable projectFolder key ('_未分类' for uncategorized)
+  key: string; // JSON [bucket, pf] fold key — no control-char separator (Scorecard, FR-033)
+  rows: Entry[];
+}
+export function projectGroups(roots: Entry[], bucket: string): ProjectGroup[] {
+  const groups: ProjectGroup[] = [];
+  for (const e of roots) {
+    const pf = projectFolder(e.task);
+    const last = groups[groups.length - 1];
+    if (last && last.pf === pf) last.rows.push(e);
+    else groups.push({ pf, key: JSON.stringify([bucket, pf]), rows: [e] });
+  }
+  return groups;
 }
 
 // Root-row count per project within a bucket (for the divider's count badge). `project` is the
