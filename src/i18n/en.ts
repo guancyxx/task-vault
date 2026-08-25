@@ -104,7 +104,7 @@ export const en = {
   // Delegation panel (shared by popover + command).
   'delegate.placeholder': 'Instruction for the agent (written in full to "## 委派")',
   // FR-048: shown when the task is already dispatched — the next delegation resumes the session.
-  'delegate.resumeBadge': '🔁 续接会话 — 已派发过，本次为追加轮次',
+  'delegate.resumeBadge': '🔁 Resume session — previously dispatched, this appends a round',
   'delegate.btn': 'Delegate',
   'delegate.emptyInstruction': 'Enter a delegation instruction',
   'delegate.fired': 'Delegated to {assignee}',

@@ -170,10 +170,11 @@ class DetailModal extends Modal {
   // 决策点 (FR-050/051): one button per option, grouped by their `Dn` prefix. A click
   // routes through resolveDecision (surgical one-line checkbox flip + ✅ date stamp +
   // auto-logged kind=决策 entry, actor=user because the UI is a local-user confirmation
-  // channel). Sibling options stay clickable file-side but applyDecision refuses a
-  // second check on the same group only per-line — the mutual exclusion is protocol-level
-  // (agent writes one group per question), so we disable checked groups' buttons after
-  // a successful write. Failure notice = the line drifted; re-open after the file settles.
+  // channel). The mutual exclusion is UI-level (PR #35 nit): options sharing a group are
+  // exclusive, so once ANY option in a group is checked — from the file or from a click in
+  // this render — the group's remaining buttons are shown but disabled (grayed). Pure
+  // rendering concern; the resolveDecision seam and the protocol-level exclusion are
+  // untouched. Failure notice = the line drifted; re-open after the file settles.
   private renderDecisions(parent: HTMLElement): void {
     const t = this.t;
     const body = this.bodyOf();
@@ -184,15 +185,20 @@ class DetailModal extends Modal {
       const row = panelBody.createDiv({ cls: 'tv-decision-group' });
       row.createSpan({ cls: 'tv-decision-group-tag', text: g.group });
       const btns = row.createSpan({ cls: 'tv-decision-options' });
+      // Group-level exclusion: one checked sibling settles the whole group.
+      const groupSettled = g.options.some((o) => o.checked);
       for (const o of g.options) {
         const btn = btns.createEl('button', {
           cls: o.checked ? 'tv-btn tv-btn-decision tv-btn-decision-checked' : 'tv-btn tv-btn-decision',
           text: o.checked ? `${o.label} ✅` : o.label,
         });
-        btn.disabled = o.checked; // settled history — never re-tappable, never rewritten
-        if (!o.checked) {
+        btn.disabled = groupSettled; // checked itself OR a checked sibling — both end the group
+        if (!groupSettled) {
           btn.addEventListener('click', () => {
-            btn.disabled = true;
+            // Optimistically lock the whole group: no sibling stays clickable while the
+            // write is in flight (the successful write settles it; a failure re-renders
+            // from the live body and unlocks everything again).
+            for (const b of Array.from(btns.querySelectorAll('button'))) b.disabled = true;
             void this.actions.resolveDecision(this.path, g.group, o.label).then((ok) => {
               if (!ok) new Notice(t('detail.decisionFailed'));
               else new Notice(t('detail.decisionPicked').replace('{text}', `${g.group} ${o.label}`));
