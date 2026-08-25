@@ -14,6 +14,7 @@ import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
 import { bucketOf, completedToday, type Bucket } from '../time/timeRules';
 import { parseTaskFile } from '../util/frontmatter';
 import { shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
+import { projectFolder, UNCATEGORIZED } from './taskPaths';
 
 export interface Entry {
   path: string;
@@ -241,12 +242,20 @@ function mkEdge(ts: Date, from: Status, to: Status, text: string): EntryInput {
   return { ts, actor: AUTO_ACTOR, from, to, text };
 }
 
-// Project→status/agent phase→priority→due ordering: tasks cluster by project folder
-// name (project field, repo/* tag, else _未分类 — mirrors taskPaths.projectFolder but stays
-// dependency-free here), then p0 before p3, then earliest due first.
+// Project→status/agent phase→priority→due ordering: tasks cluster by project folder name via
+// taskPaths.projectFolder (wikilink "[[x]]" stripped, repo/* tag, else _未分类 — 1:1 with the
+// disk folder), then p0 before p3, then earliest due first.
 export function groupSortKey(a: Entry, b: Entry): number {
-  const pa = a.task.project ?? (a.task.tags ?? []).find((t) => t.startsWith('repo/'))?.slice(5) ?? '~';
-  const pb = b.task.project ?? (b.task.tags ?? []).find((t) => t.startsWith('repo/'))?.slice(5) ?? '~';
+  // Design intent (FR-028 audit debt): the uncategorized cluster sorts LAST. Audit 08-25: never
+  // rely on punctuation collation ('~' sorts BEFORE digits/CJK/alpha under ICU 'zh') — branch
+  // explicitly on UNCATEGORIZED instead.
+  const k = (e: Entry) => projectFolder(e.task);
+  const pa = k(a);
+  const pb = k(b);
+  if (pa === UNCATEGORIZED && pb === UNCATEGORIZED) {
+    // same cluster — fall through to the tie-breakers below
+  } else if (pa === UNCATEGORIZED) return 1;
+  else if (pb === UNCATEGORIZED) return -1;
   if (pa !== pb) return pa.localeCompare(pb, 'zh');
   const sa = statusWeight(a);
   const sb = statusWeight(b);
