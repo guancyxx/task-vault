@@ -9,14 +9,15 @@
 //   agents   — assignee≠user 且非终态 (an agent is still on the hook)
 // Cards sort by open desc, then overdue desc, then project name — busiest project on top.
 
-import { projectKey } from '../store/taskPaths';
+import { projectFolder, projectKey } from '../store/taskPaths';
 import { completedThisWeek, isOverdue } from '../time/timeRules';
 import { TERMINAL_STATUSES, type Status, type Task } from './types';
 
 export const OPEN_STATES: readonly Status[] = ['inbox', 'todo', 'doing', 'review', 'waiting'];
 
 export interface ProjectStat {
-  project: string; // case-folded identity key (detail view's key; display should use first-seen spelling)
+  project: string; // case-folded identity key (the detail view's matching key)
+  display: string; // first-seen original spelling — what cards/titles render (audit 08-25)
   open: number;
   overdue: number;
   weekDone: number;
@@ -39,7 +40,7 @@ export function projectStats(tasks: Task[], now: Date): ProjectStat[] {
     const key = projectKey(task);
     let stat = byProject.get(key);
     if (!stat) {
-      stat = { project: key, open: 0, overdue: 0, weekDone: 0, agents: 0, total: 0 };
+      stat = { project: key, display: projectFolder(task), open: 0, overdue: 0, weekDone: 0, agents: 0, total: 0 };
       byProject.set(key, stat);
     }
     stat.total += 1;

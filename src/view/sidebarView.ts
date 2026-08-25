@@ -348,7 +348,7 @@ export function projectGroups(roots: Entry[], bucket: string): ProjectGroup[] {
   const groups: ProjectGroup[] = [];
   for (const e of roots) {
     const pf = projectFolder(e.task);
-    const key = pf.toLowerCase();
+    const key = projectKey(e.task); // single source of identity (audit 08-25 follow-up)
     const last = groups[groups.length - 1];
     if (last && last.key === key) last.rows.push(e);
     else groups.push({ key, foldKey: JSON.stringify([bucket, key]), display: pf, rows: [e] });

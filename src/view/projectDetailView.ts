@@ -6,7 +6,7 @@
 
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
 import { agentProgress } from '../model/agentProgress';
-import { projectKey } from '../store/taskPaths';
+import { projectFolder, projectKey } from '../store/taskPaths';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Status } from '../model/types';
@@ -82,15 +82,20 @@ export class ProjectDetailView extends ItemView {
     root.empty();
     root.addClass('tv-project-detail');
 
+    // Every task filed under this project, keyed by the root task's effective status.
+    // Case-folded identity (2026-08-25): a detail view opened for "Task Vault" also matches
+    // tasks spelled task vault.
+    const entries = this.store.allEntries().filter((e) => projectKey(e.task) === this.project?.toLowerCase());
+
+    // Display keeps the FIRST-SEEN original spelling from the actual tasks (audit 08-25) —
+    // never the folded identity key (Edu-Agent shows as "Edu-Agent", not edu-agent).
+    const display = entries.length > 0 ? projectFolder(entries[0].task) : this.project;
+
     const header = root.createDiv({ cls: 'tv-proj-detail-header' });
     const back = header.createEl('button', { cls: 'tv-proj-back', text: t('projectDetail.back') });
     back.addEventListener('click', () => this.openProjects());
-    header.createSpan({ cls: 'tv-proj-detail-title', text: this.project || t('projectDetail.fallback') });
+    header.createSpan({ cls: 'tv-proj-detail-title', text: display || t('projectDetail.fallback') });
 
-    // Every task filed under this project, keyed by the root task's effective status.
-    // Case-folded identity (2026-08-25): a detail view opened for "Task Vault" also matches
-    // tasks spelled task-vault.
-    const entries = this.store.allEntries().filter((e) => projectKey(e.task) === this.project?.toLowerCase());
     const roots = entries.filter((e) => {
       const p = e.task.parent;
       return !p || !this.store.hasId(p);

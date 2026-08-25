@@ -25,20 +25,26 @@ export type NewTaskFormResult =
   | { ok: true; capture: Capture }
   | { ok: false; reason: 'emptyTitle' | 'badDue' | 'badProject'; duePreview?: string };
 
-// Known project names from indexed tasks (project field → repo/* tag), de-wikilinked and
-// deduped, sorted case-insensitively. Pure over plain Task[].
+// Known project names from indexed tasks (project field → repo/* tag), de-wikilinked,
+// deduped case-insensitively (2026-08-25 audit: a casing variant must not re-enter the
+// frontmatter as a different spelling), sorted case-insensitively. Pure over plain Task[].
 export function knownProjects(tasks: Pick<Task, 'project' | 'tags'>[]): string[] {
-  const names = new Set<string>();
+  const names = new Map<string, string>(); // folded key → first-seen spelling
   for (const t of tasks) {
+    let name: string | undefined;
     if (t.project) {
       const m = /^\[\[(.+)\]\]$/.exec(t.project.trim());
-      names.add((m ? m[1] : t.project.trim()));
+      name = m ? m[1] : t.project.trim();
     } else {
       const repo = (t.tags ?? []).find((tg) => tg.startsWith('repo/'));
-      if (repo) names.add(repo.slice('repo/'.length));
+      if (repo) name = repo.slice('repo/'.length);
+    }
+    if (name !== undefined) {
+      const k = name.toLowerCase();
+      if (!names.has(k)) names.set(k, name);
     }
   }
-  return [...names].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+  return [...names.values()].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
 }
 
 // Assemble the form value into a Capture. Title trimmed (empty → error); priority optional;

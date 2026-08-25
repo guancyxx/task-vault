@@ -84,4 +84,17 @@ describe('projectStats (FR-035)', () => {
     expect(stats.map((s) => s.project)).toEqual(['beta', '_未分类', 'alpha']);
     expect(stats[0].open).toBe(3);
   });
+
+  it('merges case variants into one stat and keeps first-seen display spelling (08-25)', () => {
+    const tasks = [
+      task({ id: 'a1', project: 'Edu-Agent', status: 'todo' }),
+      task({ id: 'a2', project: 'edu-agent', status: 'doing' }),
+      task({ id: 'a3', project: '[[EDU-AGENT]]', status: 'inbox' }),
+    ];
+    const stats = projectStats(tasks, NOW);
+    expect(stats).toHaveLength(1);
+    expect(stats[0].project).toBe('edu-agent'); // folded identity
+    expect(stats[0].display).toBe('Edu-Agent'); // first-seen original spelling
+    expect(stats[0].open).toBe(3);
+  });
 });
