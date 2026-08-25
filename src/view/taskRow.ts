@@ -254,11 +254,13 @@ export function renderTaskRow(parent: HTMLElement, task: Task, ctx: RowContext):
     titleRow.createSpan({ cls: 'tv-tag tv-block-src', text: t('row.blocked'), attr: { title: t('row.blockSource', { names }) } });
   }
 
-  // FR-049 one-click review decision: two inline buttons, rendered only while the effective
-  // status is review (FR-046 layering — a resident triage signal that adds zero noise in any
-  // other state). Clicks stop propagation so the row's openDoc handler never fires; the write
-  // goes through the injected reviewDecision handler (→ TaskActions.setStatus seam).
-  for (const act of reviewActions(ctx.effectiveStatus, t)) {
+  // FR-049 one-click review decision: two inline buttons, rendered only while the REAL
+  // frontmatter status is review. effectiveStatus is a derived overlay (blocked/waiting can
+  // masquerade as other states) — a review action is only honest against the stored status,
+  // so we read task.status directly (PR #33 nit). Clicks stop propagation so the row's
+  // openDoc handler never fires; the write goes through the injected reviewDecision
+  // handler (→ TaskActions.setStatus seam).
+  for (const act of reviewActions(task.status, t)) {
     const btn = titleRow.createSpan({
       cls: `tv-tag tv-review-act ${act.cls}`,
       text: act.label,

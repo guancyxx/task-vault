@@ -35,6 +35,7 @@ function fakeEl(): any {
     classes: [] as string[],
     attrs: {} as Record<string, string>,
     text: '',
+    listeners, // exposed so tests can fire a single listener with a spy event
     addEventListener(type: string, fn: (e: any) => void) {
       (listeners[type] ??= []).push(fn);
     },
@@ -87,10 +88,10 @@ const TASK: Task = {
   created: '2026-08-25T09:00',
 };
 
-function render(status: Task['status'], actions?: RowActions): any {
+function render(status: Task['status'], actions?: RowActions, effectiveStatus?: Task['status']): any {
   const parent = fakeEl();
   renderTaskRow(parent, { ...TASK, status }, {
-    effectiveStatus: status,
+    effectiveStatus: effectiveStatus ?? status,
     blockSources: [],
     now: new Date('2026-08-25T10:00'),
     path: '03 Tasks/x/2026-08-25/review-me.md',
@@ -116,6 +117,14 @@ describe('renderTaskRow review one-click (FR-049)', () => {
     }
   });
 
+  it('renders the actions from the REAL status, not the derived effectiveStatus (PR #33 nit)', () => {
+    // Stored status=review, but a dependency makes the derived overlay say "blocked".
+    // The review decision buttons must still render — a review action is only honest
+    // against the actual frontmatter state.
+    const btns = findReviewButtons(render('review', undefined, 'blocked'));
+    expect(btns.map((b) => b.text)).toEqual(['✅ 确认完成', '↩ 打回 doing']);
+  });
+
   it('routes button clicks through the reviewDecision handler (→ setStatus seam)', () => {
     const calls: Array<'done' | 'doing'> = [];
     const actions: RowActions = {
@@ -129,6 +138,44 @@ describe('renderTaskRow review one-click (FR-049)', () => {
     btns[0].click(); // ✅ confirm
     btns[1].click(); // ↩ rework
     expect(calls).toEqual(['done', 'doing']);
+  });
+
+  // Clicking a review button must never bubble to the row-level openDoc handler —
+  // the whole row is a click target, so an un-stopped event would open the document
+  // underneath the decision the user just made (PR #33 nit).
+  it('stops propagation on review button clicks — openDoc never fires', () => {
+    const events: string[] = [];
+    const actions: RowActions = {
+      complete: () => {},
+      reschedule: () => {},
+      openDetail: () => {},
+      openDoc: () => events.push('openDoc'),
+      reviewDecision: () => events.push('reviewDecision'),
+    };
+    const row = render('review', actions);
+    const btn = findReviewButtons(row)[0];
+    let rowClick: ((e: unknown) => void) | undefined;
+    let stopped = false;
+    for (const fn of row.listeners.click ?? []) {
+      // Keep the original row listener (openDoc) but only record it — we assert on
+      // dispatch order manually below.
+      rowClick = fn;
+    }
+    expect(rowClick).toBeDefined(); // the row registers its openDoc click handler
+    for (const fn of btn.listeners.click ?? []) {
+      // Simulate the browser: pass an event whose stopPropagation is observable.
+      fn({
+        stopPropagation: () => {
+          stopped = true;
+        },
+      });
+    }
+    // The button's own handler called stopPropagation and routed the decision…
+    expect(stopped).toBe(true);
+    expect(events).toEqual(['reviewDecision']);
+    // …while a raw row-level click (no stopPropagation) still opens the doc.
+    rowClick!({});
+    expect(events).toEqual(['reviewDecision', 'openDoc']);
   });
 });
 
