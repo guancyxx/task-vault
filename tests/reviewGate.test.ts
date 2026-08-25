@@ -54,6 +54,13 @@ describe('chat-confirmation citation channel (FR-030a)', () => {
     expect(shouldGuardExternalDone('review', doneTask(), cite('done-entry'))).toBe(false);
   });
 
+  it('accepts an externally-written doing→done whose citation landed first (FR-030a lock order)', () => {
+    // Correct lock order: body (done edge + citation) patched BEFORE the frontmatter
+    // status flip, so by the time the gate ingests the upsert the citation is already
+    // there. This is the original incident shape (2026-08-24) — from=doing, not review.
+    expect(shouldGuardExternalDone('doing', doneTask(), cite('done-entry'))).toBe(false);
+  });
+
   it('accepts a citation in a chronologically-later entry (newest-first log)', () => {
     expect(shouldGuardExternalDone('review', doneTask(), cite('later-entry'))).toBe(false);
   });
