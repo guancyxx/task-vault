@@ -93,6 +93,15 @@ instruction.
    auto-rescheduled — carrying a task over means patching `due` to the new date (append a
    log entry saying so). Never copy task files (copies leak into the Reminders mirror as
    duplicates).
+9. **Two-step lock order for agent `done` (FR-030a, 2026-08-25).** When closing a task via
+   the chat-confirmation channel, the two writes must land in this order — body first,
+   frontmatter second. ① patch the body: insert the done-edge entry carrying the
+   `user-confirm:` citation; ② patch the frontmatter: `status: done` + `completed`.
+   Writing the frontmatter first opens a window where the review gate ingests a
+   "done task with no citation in the body", reverts it to `review`, and writes its own
+   intervention entry — which the agent's follow-up body patch may then clobber (this
+   actually happened 2026-08-24 08:28). Both steps individually follow rule 1: re-read
+   before patch, read back after.
 
 ## Status transitions & the review gate
 
@@ -129,6 +138,9 @@ done boundary (both are legal per the authoritative spec). The gate checks forma
 deployment-side auditor verifies each citation against the originating chat store (message
 exists ∧ role=user ∧ session matches ∧ quote is an exact substring ∧ the message time is
 not later than the done write ∧ not a system injection). Failed verification = unreviewed.
+
+When writing this done, follow the two-step lock order (write-protocol rule 9): body
+(citation) first, frontmatter (`status: done`) second — never the reverse.
 
 ## Delegation protocol
 
