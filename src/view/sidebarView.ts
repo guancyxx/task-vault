@@ -15,7 +15,7 @@ import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
 import { openDetailAt } from './detailPopover';
 import { renderTaskRow, type RowActions } from './taskRow';
-import { projectFolder, UNCATEGORIZED } from '../store/taskPaths';
+import { projectFolder, projectKey, UNCATEGORIZED } from '../store/taskPaths';
 
 // The view stays framework-thin: capture creates a file via this injected handler (VaultSource).
 export type CaptureHandler = (text: string, now: Date) => Promise<void>;
@@ -139,23 +139,23 @@ export class TaskVaultView extends ItemView {
       }
       // Project subgroups (user request 2026-08-19): rows are already group-sorted by
       // project+priority; insert a clickable divider per consecutive run of the stable
-      // projectFolder key (see projectGroups). Fold state is per (bucket, project) —
+      // case-folded project key (see projectGroups). Fold state is per (bucket, project) —
       // independent across sections — and defaults to folded.
       const uncat = t('sidebar.uncategorized');
       let currentCollapsed = false;
       for (const g of projectGroups(roots, bucket)) {
-        // Wikilink-stripped grouping key: project "[[学习]]" and bare 学习 must land in ONE
-        // group; the localized uncat label is display-only and can never merge groups (audit
-        // 08-25 — not even when a real project's name equals the localized label).
-        const proj = g.pf === UNCATEGORIZED ? uncat : g.pf;
-        currentCollapsed = !this.expandedProjects.has(g.key); // default folded
+        // Group identity is the case-folded key (wikilink-stripped): "[[学习]]"/学习 and
+        // Task Vault/task-vault all land in ONE group. `display` keeps the first-seen original
+        // casing; the localized uncat label is display-only (audit 08-25).
+        const proj = g.display === UNCATEGORIZED ? uncat : g.display;
+        currentCollapsed = !this.expandedProjects.has(g.foldKey); // default folded
         {
           const div = body.createDiv({ cls: 'tv-project-divider' });
           div.toggleClass('tv-collapsed', currentCollapsed);
           div.createSpan({ cls: 'tv-project-fold', text: currentCollapsed ? '▸' : '▾' });
           div.createSpan({ cls: 'tv-project-name', text: proj });
-          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, g.pf, uncat)) });
-          const key = g.key;
+          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, g.key, uncat)) });
+          const key = g.foldKey;
           div.addEventListener('click', () => {
             if (this.expandedProjects.has(key)) this.expandedProjects.delete(key);
             else this.expandedProjects.add(key);
@@ -332,36 +332,40 @@ export function pickExample(xs: readonly string[], rng: () => number): string {
   return xs[Math.floor(rng() * xs.length)];
 }
 
-// Project subgroups for one bucket's rows: consecutive runs of the STABLE projectFolder key.
-// Pure and exported so the render-loop grouping semantics are unit-testable directly (audit
-// 08-25: the group boundary must key on pf, never on the localized display name — a real
-// project named like the uncat label must NOT merge with the uncategorized group).
+// Project subgroups for one bucket's rows: consecutive runs of the STABLE case-folded key
+// (projectKey = wikilink-stripped + lowercased, 2026-08-25). Pure and exported so the
+// render-loop grouping semantics are unit-testable directly (audit 08-25: the group boundary
+// must key on identity, never on the localized display name). `display` keeps the FIRST-seen
+// original casing of the run — Task Vault shown as "Task Vault" even if later rows spell it
+// task-vault.
 export interface ProjectGroup {
-  pf: string; // stable projectFolder key ('_未分类' for uncategorized)
-  key: string; // JSON [bucket, pf] fold key — no control-char separator (Scorecard, FR-033)
+  key: string; // case-folded identity ('_未分类' for uncategorized — already lowercase-safe)
+  foldKey: string; // JSON [bucket, key] fold key — no control-char separator (Scorecard, FR-033)
+  display: string; // first-seen projectFolder spelling, display-only
   rows: Entry[];
 }
 export function projectGroups(roots: Entry[], bucket: string): ProjectGroup[] {
   const groups: ProjectGroup[] = [];
   for (const e of roots) {
     const pf = projectFolder(e.task);
+    const key = projectKey(e.task); // single source of identity (audit 08-25 follow-up)
     const last = groups[groups.length - 1];
-    if (last && last.pf === pf) last.rows.push(e);
-    else groups.push({ pf, key: JSON.stringify([bucket, pf]), rows: [e] });
+    if (last && last.key === key) last.rows.push(e);
+    else groups.push({ key, foldKey: JSON.stringify([bucket, key]), display: pf, rows: [e] });
   }
   return groups;
 }
 
 // Root-row count per project within a bucket (for the divider's count badge). `project` is the
-// STABLE projectFolder key ('_未分类' for uncategorized); the count key mirrors the render loop's
-// grouping and fold keys exactly, so a mixed bare/wikilink project counts as one group. `uncat`
-// is the localized fallback label — display-only, never a count key (audit 08-25: prevents a
-// real project that happens to equal the localized label from merging with uncategorized).
+// case-folded identity key; the count key mirrors the render loop's grouping and fold keys
+// exactly, so mixed bare/wikilink/casing spellings count as one group. `uncat` is the localized
+// fallback label — display-only, never a count key (audit 08-25: prevents a real project that
+// happens to equal the localized label from merging with uncategorized).
 export function projectCount(roots: Entry[], project: string, _uncat: string): number {
-  void _uncat; // kept in the signature for call-site symmetry; keys are stable pf values
+  void _uncat; // kept in the signature for call-site symmetry; keys are case-folded identity
   let n = 0;
   for (const e of roots) {
-    if (projectFolder(e.task) === project) n++;
+    if (projectKey(e.task) === project) n++;
   }
   return n;
 }

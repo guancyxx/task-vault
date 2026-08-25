@@ -78,7 +78,7 @@ export class ProjectVaultView extends ItemView {
 
   private renderCard(grid: HTMLElement, stat: ProjectStat, t: T): void {
     const card = grid.createDiv({ cls: 'tv-proj-card' });
-    card.createDiv({ cls: 'tv-proj-name', text: stat.project });
+    card.createDiv({ cls: 'tv-proj-name', text: stat.display }); // original spelling, not the folded key
 
     const metrics = card.createDiv({ cls: 'tv-proj-metrics' });
     metric(metrics, stat.open, t('projects.open'), 'open');
@@ -86,7 +86,7 @@ export class ProjectVaultView extends ItemView {
     metric(metrics, stat.weekDone, t('projects.weekDone'), 'muted');
     metric(metrics, stat.agents, t('projects.running'), stat.agents > 0 ? 'agents' : 'muted');
 
-    card.addEventListener('click', () => this.openDetail(stat.project));
+    card.addEventListener('click', () => this.openDetail(stat.display));
   }
 }
 

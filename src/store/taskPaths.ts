@@ -54,3 +54,12 @@ function sanitize(name: string): string {
     .replace(/^\.+/, '');
   return cleaned === '' ? UNCATEGORIZED : cleaned;
 }
+
+// Case-insensitive project identity (2026-08-25, user decision): agents historically wrote
+// the same project with different casings (Task Vault / task-vault). Grouping, sorting, stats,
+// and detail filtering must key on this FOLDED form so spelling variants aggregate, while
+// display keeps the first-seen original casing (projectFolder). macOS FS is case-insensitive
+// so on disk both spellings already resolve to one folder; this makes the UI agree.
+export function projectKey(task: Pick<Task, 'project' | 'tags'>): string {
+  return projectFolder(task).toLowerCase();
+}

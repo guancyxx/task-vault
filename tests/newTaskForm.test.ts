@@ -95,6 +95,16 @@ describe('knownProjects (dropdown source, 1:1 with disk folders)', () => {
     ];
     expect(knownProjects(tasks)).toEqual(['edu-agent', 'magicedit', 'task-vault']);
   });
+
+  it('dedupes case-insensitively, keeping the first-seen spelling (audit 08-25)', () => {
+    const tasks = [
+      { project: 'Edu-Agent' },
+      { project: 'edu-agent' },
+      { project: '[[EDU-AGENT]]' },
+      { project: 'magicedit' },
+    ] as Parameters<typeof knownProjects>[0];
+    expect(knownProjects(tasks)).toEqual(['Edu-Agent', 'magicedit']);
+  });
 });
 
 describe('previewDue (live due preview)', () => {

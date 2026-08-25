@@ -396,4 +396,15 @@ describe('groupSortKey wikilink project stripping', () => {
     const sorted = [...named, unnamed].sort(groupSortKey);
     expect(sorted[sorted.length - 1].task.id).toBe('unnamed');
   });
+
+  it('clusters casing variants of one project adjacently (2026-08-25 casefold)', () => {
+    const mixed = [
+      entry('lower', 'task vault'),
+      entry('other', 'zzz-other'),
+      entry('upper', 'Task Vault'),
+    ];
+    const ids = mixed.sort(groupSortKey).map((e) => e.task.id);
+    expect(Math.abs(ids.indexOf('lower') - ids.indexOf('upper'))).toBe(1);
+    expect(ids.indexOf('other')).toBeGreaterThan(-1);
+  });
 });
