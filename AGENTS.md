@@ -71,6 +71,7 @@ mirror:
 
 - 两侧都遵守：改前重读文件（防并发丢更新），写后回读验证（继承 08 文本行时代的教训）。
 - Python 侧用 PyYAML 读写 frontmatter；TS 侧用 processFrontMatter + 自有最小解析（读 metadataCache 或文件）。
+- **agent 置 done 两步锁序（FR-030a，2026-08-25 定）**：外部 agent 走聊天确认通道置 done = 两步写，顺序不可颠倒——①先 patch body：插入 done 边条目（含 `user-confirm:` 引用行）；②再写 frontmatter：status=done + completed。顺序颠倒（先 frontmatter 后 citation）会在两步窗口内被 reviewGate 截获打回 review，agent 随后的 body patch 还可能基于旧读覆盖门禁刚落的干预条目（2026-08-24 08:28 实际发生）。两步各自遵守本节通用规则：改前重读、写后回读验证。
 
 ## 7. 执行记录格式（权威 FR-018）
 
@@ -115,3 +116,4 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区**最前�
 
 - `actor ∈ {hermes, cc, codex}` 时，状态机拒绝任何 `X → done`；agent 收尾只能写 `X → review`。
 - `review → done` 仅 `actor=user` 允许。插件本地 UI 默认以 user 身份调用；Reminders 勾选完成是独立的用户确认通道，可由同步器直接写 done。
+- FR-030a 聊天确认引用通道的唯一豁免：agent 携有效 citation 直接写 done 时，必须遵守 §6 的两步锁序（body/citation 先行，frontmatter 后写）。
