@@ -15,6 +15,7 @@ import { openReschedule } from './reschedule';
 import { parseCapture } from './captureParse';
 import { openDetailAt } from './detailPopover';
 import { renderTaskRow, type RowActions } from './taskRow';
+import { projectFolder, UNCATEGORIZED } from '../store/taskPaths';
 
 // The view stays framework-thin: capture creates a file via this injected handler (VaultSource).
 export type CaptureHandler = (text: string, now: Date) => Promise<void>;
@@ -143,9 +144,12 @@ export class TaskVaultView extends ItemView {
       let currentCollapsed = false;
       const uncat = t('sidebar.uncategorized');
       for (const e of roots) {
-        const proj = e.task.project
-          ?? (e.task.tags ?? []).find((tg) => tg.startsWith('repo/'))?.slice(5)
-          ?? uncat;
+        // Wikilink-stripped grouping key: project "[[学习]]" and bare 学习 must land in ONE group.
+        // projectFolder falls back to the UNCATEGORIZED constant ('_未分类') when a task has no
+        // project — map that to the localized `uncat` label for display, while the key itself
+        // stays uniform so dividers, counts, and fold state never split on localization.
+        const pf = projectFolder(e.task);
+        const proj = pf === UNCATEGORIZED ? uncat : pf;
         if (proj !== lastProject) {
           lastProject = proj;
           // JSON-encoded [bucket, project] composite key — no control-char separator, and
@@ -334,14 +338,14 @@ export function pickExample(xs: readonly string[], rng: () => number): string {
 }
 
 // Root-row count per project within a bucket (for the divider's count badge). `uncat` is the
-// localized fallback label — passed in so it matches the render loop's grouping key exactly.
-function projectCount(roots: Entry[], project: string, uncat: string): number {
+// localized fallback label — the count key MUST mirror the render loop's grouping key exactly:
+// both derive from taskPaths.projectFolder (wikilink stripped), with UNCATEGORIZED mapped to
+// `uncat` so a mixed bare/wikilink project counts as one group instead of splitting in two.
+export function projectCount(roots: Entry[], project: string, uncat: string): number {
   let n = 0;
   for (const e of roots) {
-    const p = e.task.project
-      ?? (e.task.tags ?? []).find((tg) => tg.startsWith('repo/'))?.slice(5)
-      ?? uncat;
-    if (p === project) n++;
+    const pf = projectFolder(e.task);
+    if ((pf === UNCATEGORIZED ? uncat : pf) === project) n++;
   }
   return n;
 }

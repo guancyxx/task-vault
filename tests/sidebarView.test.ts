@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { countClass, restoreCapture, snapshotCapture } from '../src/view/sidebarView';
+import { countClass, projectCount, restoreCapture, snapshotCapture } from '../src/view/sidebarView';
+import type { Entry } from '../src/store/taskStore';
+import type { Task } from '../src/model/types';
 
 // FR-047 count semantics: a non-zero overdue/review/today count gets a bucket-coloured pill class;
 // week/done and any zero count stay the bare grey tv-count. Pure — the render just spreads the array.
@@ -73,5 +75,40 @@ describe('capture snapshot/restore (FR-044, audit C1)', () => {
     const input = makeInput({ setSelectionRange: (s: number | null, e: number | null) => { ranges.push([s, e]); } });
     restoreCapture(input, { value: 'x', focused: false, selectionStart: null, selectionEnd: null });
     expect(ranges).toEqual([]);
+  });
+});
+
+// Sidebar wikilink fix: the divider count key must equal the render loop's grouping key — both
+// derive from taskPaths.projectFolder, so project "[[学习]]" and bare 学习 count as ONE project
+// (no split group), and the uncategorized cluster counts under the localized label.
+describe('projectCount wikilink grouping key', () => {
+  const UNCAT_LABEL = '未分类';
+  function entry(id: string, extra: Partial<Task> = {}): Entry {
+    return {
+      path: `03 Tasks/${id}.md`,
+      task: { id, title: id, status: 'todo', created: '2026-08-19T09:00', ...extra } as Task,
+      body: '',
+    };
+  }
+
+  it('counts wikilink and bare spellings of the same project together', () => {
+    const roots = [
+      entry('bare', { project: '学习' }),
+      entry('link', { project: '[[学习]]' }),
+      entry('other', { project: '别的项目' }),
+    ];
+    expect(projectCount(roots, '学习', UNCAT_LABEL)).toBe(2);
+    expect(projectCount(roots, '别的项目', UNCAT_LABEL)).toBe(1);
+  });
+
+  it('maps the UNCATEGORIZED fallback to the localized label in the count key', () => {
+    const roots = [
+      entry('none', { project: undefined }),
+      entry('repo', { project: undefined, tags: ['repo/-repository'] }),
+      entry('named', { project: 'x' }),
+    ];
+    expect(projectCount(roots, UNCAT_LABEL, UNCAT_LABEL)).toBe(1); // bare '_' label never leaks
+    expect(projectCount(roots, '-repository', UNCAT_LABEL)).toBe(1);
+    expect(projectCount(roots, '_未分类', UNCAT_LABEL)).toBe(0); // raw constant must not match
   });
 });

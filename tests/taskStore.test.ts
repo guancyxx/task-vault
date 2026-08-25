@@ -345,3 +345,43 @@ describe('groupSortKey full fallback chain (FR-028/030 audit debt)', () => {
     expect(buckets.review.map((e) => e.task.id)).toEqual(['needs-review']);
   });
 });
+
+// Sidebar wikilink fix: frontmatter `project` may be written as a wikilink ("[[学习]]") or bare
+// (学习) — the 规范 allows both. groupSortKey now derives its project key from
+// taskPaths.projectFolder, so both spellings must land in the SAME project cluster (one divider,
+// adjacent rows) instead of splitting into two groups.
+describe('groupSortKey wikilink project stripping', () => {
+  function entry(id: string, project: string | undefined): Entry {
+    return {
+      path: `03 Tasks/${id}.md`,
+      task: { id, title: id, status: 'todo', created: '2026-08-19T09:00', project } as Task,
+      body: '',
+    };
+  }
+
+  it('treats "[[学习]]" and bare 学习 as the same project (comparator ties at 0)', () => {
+    // Identical except the project spelling AND the id — the comparator keeps comparing after
+    // the project key, so id must match too for a guaranteed tie at 0.
+    const link = entry('same', '[[学习]]');
+    const bare = entry('same', '学习');
+    expect(groupSortKey(link, bare)).toBe(0);
+    expect(groupSortKey(bare, link)).toBe(0);
+  });
+
+  it('sorts wikilink and bare spellings of one project adjacent, apart from other projects', () => {
+    const mixed = [
+      entry('z-bare', 'task-vault'),
+      entry('other', '别的项目'),
+      entry('a-link', '[[task-vault]]'),
+    ];
+    const ids = mixed.sort(groupSortKey).map((e) => e.task.id);
+    expect(Math.abs(ids.indexOf('a-link') - ids.indexOf('z-bare'))).toBe(1);
+    expect(ids.indexOf('other')).toBeGreaterThan(-1);
+  });
+
+  it('treats a missing project and an empty project as the same uncategorized cluster', () => {
+    const noField = entry('same', undefined);
+    const empty = entry('same', '');
+    expect(groupSortKey(noField, empty)).toBe(0);
+  });
+});
