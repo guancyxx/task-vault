@@ -49,6 +49,9 @@ export class ProjectDetailView extends ItemView {
 
   getDisplayText(): string {
     const t = this.getT();
+    // this.project is whatever spelling the opener passed (a display spelling from card click,
+    // or a legacy workspace-state key). Render it as-is: never force the folded key onto the
+    // tab (audit 08-25) — Edu-Agent stays "Edu-Agent".
     return this.project ? t('projectDetail.title', { project: this.project }) : t('projectDetail.fallback');
   }
 

@@ -86,7 +86,7 @@ export class ProjectVaultView extends ItemView {
     metric(metrics, stat.weekDone, t('projects.weekDone'), 'muted');
     metric(metrics, stat.agents, t('projects.running'), stat.agents > 0 ? 'agents' : 'muted');
 
-    card.addEventListener('click', () => this.openDetail(stat.project));
+    card.addEventListener('click', () => this.openDetail(stat.display));
   }
 }
 
