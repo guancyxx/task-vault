@@ -26,15 +26,14 @@ const TERMINAL_GROUP: readonly Status[] = ['done', 'cancelled'];
 
 export type OpenProjects = () => void;
 
-// Display spelling for a detail view (audit 08-25, round 3): the view's `project` may hold
+// Display spelling for a detail view (audit 08-25, rounds 3-4): the view's `project` may hold
 // either a display spelling (card click passes stat.display) or a legacy folded key (old
-// workspace state). The UI text must NEVER show the folded key — recover the first-seen
-// original spelling from the store's actual tasks; fall back to the passed spelling only when
-// no task matches (nothing better exists, and a display spelling passes through unchanged).
-// Pure over entries so it unit-tests directly.
-export function projectDisplay(project: string, entries: Entry[]): string {
-  if (entries.length > 0) return projectFolder(entries[0].task);
-  return project;
+// workspace state). UI text must NEVER show a bare state string when it can't be verified —
+// recover the first-seen original spelling from the store's actual tasks; when NO task matches,
+// the project no longer exists in the vault (stale state, possibly holding a folded key), so
+// return '' and let callers fall back to the generic localized title. Pure over entries.
+export function projectDisplay(_project: string, entries: Entry[]): string {
+  return entries.length > 0 ? projectFolder(entries[0].task) : '';
 }
 
 export class ProjectDetailView extends ItemView {

@@ -25,8 +25,11 @@ describe('projectDisplay (audit 08-25 r3: no folded key in UI text)', () => {
     expect(projectDisplay('Edu-Agent', entries)).toBe('Edu-Agent');
   });
 
-  it('falls back to the passed spelling when no task matches (empty project)', () => {
-    expect(projectDisplay('Edu-Agent', [])).toBe('Edu-Agent');
+  it('returns empty when no task matches — stale state never surfaces any spelling (r4)', () => {
+    // Legacy folded key OR display spelling with zero matches: the project no longer exists;
+    // callers must fall back to the generic localized title instead of showing the raw string.
+    expect(projectDisplay('edu-agent', [])).toBe('');
+    expect(projectDisplay('Edu-Agent', [])).toBe('');
   });
 
   it('strips wikilinks in the recovered spelling', () => {
