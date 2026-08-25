@@ -26,6 +26,17 @@ const TERMINAL_GROUP: readonly Status[] = ['done', 'cancelled'];
 
 export type OpenProjects = () => void;
 
+// Display spelling for a detail view (audit 08-25, round 3): the view's `project` may hold
+// either a display spelling (card click passes stat.display) or a legacy folded key (old
+// workspace state). The UI text must NEVER show the folded key — recover the first-seen
+// original spelling from the store's actual tasks; fall back to the passed spelling only when
+// no task matches (nothing better exists, and a display spelling passes through unchanged).
+// Pure over entries so it unit-tests directly.
+export function projectDisplay(project: string, entries: Entry[]): string {
+  if (entries.length > 0) return projectFolder(entries[0].task);
+  return project;
+}
+
 export class ProjectDetailView extends ItemView {
   private project = '';
   private collapsedParents = new Set<string>();
@@ -49,10 +60,11 @@ export class ProjectDetailView extends ItemView {
 
   getDisplayText(): string {
     const t = this.getT();
-    // this.project is whatever spelling the opener passed (a display spelling from card click,
-    // or a legacy workspace-state key). Render it as-is: never force the folded key onto the
-    // tab (audit 08-25) — Edu-Agent stays "Edu-Agent".
-    return this.project ? t('projectDetail.title', { project: this.project }) : t('projectDetail.fallback');
+    // Recover the display spelling from the store (handles legacy folded-key states);
+    // never render the folded key on the tab (audit 08-25 round 3).
+    const entries = this.store.allEntries().filter((e) => projectKey(e.task) === this.project.toLowerCase());
+    const display = projectDisplay(this.project, entries);
+    return display ? t('projectDetail.title', { project: display }) : t('projectDetail.fallback');
   }
 
   getIcon(): string {
@@ -92,7 +104,7 @@ export class ProjectDetailView extends ItemView {
 
     // Display keeps the FIRST-SEEN original spelling from the actual tasks (audit 08-25) —
     // never the folded identity key (Edu-Agent shows as "Edu-Agent", not edu-agent).
-    const display = entries.length > 0 ? projectFolder(entries[0].task) : this.project;
+    const display = projectDisplay(this.project, entries);
 
     const header = root.createDiv({ cls: 'tv-proj-detail-header' });
     const back = header.createEl('button', { cls: 'tv-proj-back', text: t('projectDetail.back') });
