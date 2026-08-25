@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { countClass, projectCount, restoreCapture, snapshotCapture } from '../src/view/sidebarView';
+import { UNCATEGORIZED } from '../src/store/taskPaths';
 import type { Entry } from '../src/store/taskStore';
 import type { Task } from '../src/model/types';
 
@@ -101,14 +102,23 @@ describe('projectCount wikilink grouping key', () => {
     expect(projectCount(roots, '别的项目', UNCAT_LABEL)).toBe(1);
   });
 
-  it('maps the UNCATEGORIZED fallback to the localized label in the count key', () => {
+  it('counts uncategorized under the STABLE key, never the localized label', () => {
     const roots = [
       entry('none', { project: undefined }),
       entry('repo', { project: undefined, tags: ['repo/-repository'] }),
       entry('named', { project: 'x' }),
     ];
-    expect(projectCount(roots, UNCAT_LABEL, UNCAT_LABEL)).toBe(1); // bare '_' label never leaks
-    expect(projectCount(roots, '-repository', UNCAT_LABEL)).toBe(1);
-    expect(projectCount(roots, '_未分类', UNCAT_LABEL)).toBe(0); // raw constant must not match
+    expect(projectCount(roots, UNCATEGORIZED, UNCAT_LABEL)).toBe(1); // repo/* derives its own folder
+    expect(projectCount(roots, 'x', UNCAT_LABEL)).toBe(1);
+  });
+
+  it('a real project equal to the localized uncat label does NOT merge with uncategorized', () => {
+    // Audit 08-25 collision guard: keys are stable pf values, the localized label is display-only.
+    const roots = [
+      entry('none', { project: undefined }),
+      entry('named-uncat', { project: '未分类' }), // real project that collides with the zh label
+    ];
+    expect(projectCount(roots, UNCATEGORIZED, UNCAT_LABEL)).toBe(1);
+    expect(projectCount(roots, '未分类', UNCAT_LABEL)).toBe(1);
   });
 });

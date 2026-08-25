@@ -146,21 +146,22 @@ export class TaskVaultView extends ItemView {
       for (const e of roots) {
         // Wikilink-stripped grouping key: project "[[学习]]" and bare 学习 must land in ONE group.
         // projectFolder falls back to the UNCATEGORIZED constant ('_未分类') when a task has no
-        // project — map that to the localized `uncat` label for display, while the key itself
-        // stays uniform so dividers, counts, and fold state never split on localization.
+        // project. The fold key uses the STABLE pf (audit 08-25: fold state survives a language
+        // switch and can never collide with a real project that happens to equal the localized
+        // uncat label); the localized label is display-only.
         const pf = projectFolder(e.task);
         const proj = pf === UNCATEGORIZED ? uncat : pf;
         if (proj !== lastProject) {
           lastProject = proj;
           // JSON-encoded [bucket, project] composite key — no control-char separator, and
           // safe even when a project name contains the delimiter (Scorecard hygiene, FR-033).
-          const key = JSON.stringify([bucket, proj]);
+          const key = JSON.stringify([bucket, pf]);
           currentCollapsed = !this.expandedProjects.has(key); // default folded
           const div = body.createDiv({ cls: 'tv-project-divider' });
           div.toggleClass('tv-collapsed', currentCollapsed);
           div.createSpan({ cls: 'tv-project-fold', text: currentCollapsed ? '▸' : '▾' });
           div.createSpan({ cls: 'tv-project-name', text: proj });
-          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, proj, uncat)) });
+          div.createSpan({ cls: 'tv-project-count', text: String(projectCount(roots, pf, uncat)) });
           div.addEventListener('click', () => {
             if (this.expandedProjects.has(key)) this.expandedProjects.delete(key);
             else this.expandedProjects.add(key);
@@ -337,15 +338,16 @@ export function pickExample(xs: readonly string[], rng: () => number): string {
   return xs[Math.floor(rng() * xs.length)];
 }
 
-// Root-row count per project within a bucket (for the divider's count badge). `uncat` is the
-// localized fallback label — the count key MUST mirror the render loop's grouping key exactly:
-// both derive from taskPaths.projectFolder (wikilink stripped), with UNCATEGORIZED mapped to
-// `uncat` so a mixed bare/wikilink project counts as one group instead of splitting in two.
-export function projectCount(roots: Entry[], project: string, uncat: string): number {
+// Root-row count per project within a bucket (for the divider's count badge). `project` is the
+// STABLE projectFolder key ('_未分类' for uncategorized); the count key mirrors the render loop's
+// grouping and fold keys exactly, so a mixed bare/wikilink project counts as one group. `uncat`
+// is the localized fallback label — display-only, never a count key (audit 08-25: prevents a
+// real project that happens to equal the localized label from merging with uncategorized).
+export function projectCount(roots: Entry[], project: string, _uncat: string): number {
+  void _uncat; // kept in the signature for call-site symmetry; keys are stable pf values
   let n = 0;
   for (const e of roots) {
-    const pf = projectFolder(e.task);
-    if ((pf === UNCATEGORIZED ? uncat : pf) === project) n++;
+    if (projectFolder(e.task) === project) n++;
   }
   return n;
 }

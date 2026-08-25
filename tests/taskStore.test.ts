@@ -384,4 +384,16 @@ describe('groupSortKey wikilink project stripping', () => {
     const empty = entry('same', '');
     expect(groupSortKey(noField, empty)).toBe(0);
   });
+
+  it('sorts uncategorized LAST against CJK, alpha, and digit projects (audit 08-25)', () => {
+    // Never rely on '~'/punctuation collation — ICU 'zh' sorts '~' BEFORE digits/CJK/alpha.
+    const named = ['学习', 'alpha', '0day'].map((p) => entry(p, p));
+    const unnamed = entry('unnamed', undefined);
+    for (const n of named) {
+      expect(groupSortKey(unnamed, n)).toBeGreaterThan(0);
+      expect(groupSortKey(n, unnamed)).toBeLessThan(0);
+    }
+    const sorted = [...named, unnamed].sort(groupSortKey);
+    expect(sorted[sorted.length - 1].task.id).toBe('unnamed');
+  });
 });

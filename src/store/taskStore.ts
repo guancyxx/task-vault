@@ -246,14 +246,16 @@ function mkEdge(ts: Date, from: Status, to: Status, text: string): EntryInput {
 // taskPaths.projectFolder (wikilink "[[x]]" stripped, repo/* tag, else _未分类 — 1:1 with the
 // disk folder), then p0 before p3, then earliest due first.
 export function groupSortKey(a: Entry, b: Entry): number {
-  // Design intent (FR-028 audit debt): the uncategorized cluster sorts LAST — '~' collates
-  // after CJK and alphanumerics, so map projectFolder's UNCATEGORIZED fallback back to '~'.
-  const k = (e: Entry) => {
-    const pf = projectFolder(e.task);
-    return pf === UNCATEGORIZED ? '~' : pf;
-  };
+  // Design intent (FR-028 audit debt): the uncategorized cluster sorts LAST. Audit 08-25: never
+  // rely on punctuation collation ('~' sorts BEFORE digits/CJK/alpha under ICU 'zh') — branch
+  // explicitly on UNCATEGORIZED instead.
+  const k = (e: Entry) => projectFolder(e.task);
   const pa = k(a);
   const pb = k(b);
+  if (pa === UNCATEGORIZED && pb === UNCATEGORIZED) {
+    // same cluster — fall through to the tie-breakers below
+  } else if (pa === UNCATEGORIZED) return 1;
+  else if (pb === UNCATEGORIZED) return -1;
   if (pa !== pb) return pa.localeCompare(pb, 'zh');
   const sa = statusWeight(a);
   const sb = statusWeight(b);
