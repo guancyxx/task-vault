@@ -9,14 +9,14 @@
 //   agents   — assignee≠user 且非终态 (an agent is still on the hook)
 // Cards sort by open desc, then overdue desc, then project name — busiest project on top.
 
-import { projectFolder } from '../store/taskPaths';
+import { projectKey } from '../store/taskPaths';
 import { completedThisWeek, isOverdue } from '../time/timeRules';
 import { TERMINAL_STATUSES, type Status, type Task } from './types';
 
 export const OPEN_STATES: readonly Status[] = ['inbox', 'todo', 'doing', 'review', 'waiting'];
 
 export interface ProjectStat {
-  project: string; // folder identity (also the detail view's key)
+  project: string; // case-folded identity key (detail view's key; display should use first-seen spelling)
   open: number;
   overdue: number;
   weekDone: number;
@@ -36,7 +36,7 @@ function isAgentInFlight(task: Task): boolean {
 export function projectStats(tasks: Task[], now: Date): ProjectStat[] {
   const byProject = new Map<string, ProjectStat>();
   for (const task of tasks) {
-    const key = projectFolder(task);
+    const key = projectKey(task);
     let stat = byProject.get(key);
     if (!stat) {
       stat = { project: key, open: 0, overdue: 0, weekDone: 0, agents: 0, total: 0 };

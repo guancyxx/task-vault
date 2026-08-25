@@ -132,10 +132,11 @@ describe('projectCount wikilink grouping key', () => {
       entry('plain', { project: '学习' }),
     ];
     const groups = projectGroups(roots, 'today');
-    expect(groups.map((g) => g.pf)).toEqual(['未分类', UNCATEGORIZED, '学习']);
+    expect(groups.map((g) => g.display)).toEqual(['未分类', UNCATEGORIZED, '学习']);
+    expect(groups.map((g) => g.key)).toEqual(['未分类', '_未分类', '学习']);
     expect(groups.map((g) => g.rows.length)).toEqual([1, 1, 1]);
     // fold keys differ even when display names collide
-    expect(groups[0].key).not.toBe(groups[1].key);
+    expect(groups[0].foldKey).not.toBe(groups[1].foldKey);
   });
 
   it('projectGroups merges wikilink and bare spellings into one consecutive run', () => {
@@ -145,7 +146,25 @@ describe('projectCount wikilink grouping key', () => {
     ];
     const groups = projectGroups(roots, 'today');
     expect(groups).toHaveLength(1);
-    expect(groups[0].pf).toBe('学习');
+    expect(groups[0].display).toBe('学习');
     expect(groups[0].rows).toHaveLength(2);
+  });
+
+  it('projectGroups merges casing variants into ONE group, display keeps first-seen spelling', () => {
+    // 2026-08-25 user decision: pure case variants are the same project. NOTE: hyphen/space
+    // differences (task-vault vs Task Vault) are NOT case variants — those were unified by
+    // data migration; identity folding deliberately does not conflate them.
+    const roots = [
+      entry('canonical', { project: 'Task Vault' }),
+      entry('lower', { project: 'task vault' }),
+      entry('link-upper', { project: '[[TASK VAULT]]' }),
+    ];
+    const groups = projectGroups(roots, 'today');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe('task vault');
+    expect(groups[0].display).toBe('Task Vault'); // first-seen casing wins
+    expect(groups[0].rows).toHaveLength(3);
+    // count key is the folded identity — one badge total, not 3
+    expect(projectCount(roots, groups[0].key, UNCAT_LABEL)).toBe(3);
   });
 });

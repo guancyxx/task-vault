@@ -6,7 +6,7 @@
 
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
 import { agentProgress } from '../model/agentProgress';
-import { projectFolder } from '../store/taskPaths';
+import { projectKey } from '../store/taskPaths';
 import type { TaskActions } from '../store/taskActions';
 import type { Entry, TaskStore } from '../store/taskStore';
 import type { Status } from '../model/types';
@@ -88,7 +88,9 @@ export class ProjectDetailView extends ItemView {
     header.createSpan({ cls: 'tv-proj-detail-title', text: this.project || t('projectDetail.fallback') });
 
     // Every task filed under this project, keyed by the root task's effective status.
-    const entries = this.store.allEntries().filter((e) => projectFolder(e.task) === this.project);
+    // Case-folded identity (2026-08-25): a detail view opened for "Task Vault" also matches
+    // tasks spelled task-vault.
+    const entries = this.store.allEntries().filter((e) => projectKey(e.task) === this.project?.toLowerCase());
     const roots = entries.filter((e) => {
       const p = e.task.parent;
       return !p || !this.store.hasId(p);

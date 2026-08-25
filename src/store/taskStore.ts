@@ -14,7 +14,7 @@ import { TERMINAL_STATUSES, type Status, type Task } from '../model/types';
 import { bucketOf, completedToday, type Bucket } from '../time/timeRules';
 import { parseTaskFile } from '../util/frontmatter';
 import { shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
-import { projectFolder, UNCATEGORIZED } from './taskPaths';
+import { projectKey, UNCATEGORIZED } from './taskPaths';
 
 export interface Entry {
   path: string;
@@ -248,8 +248,9 @@ function mkEdge(ts: Date, from: Status, to: Status, text: string): EntryInput {
 export function groupSortKey(a: Entry, b: Entry): number {
   // Design intent (FR-028 audit debt): the uncategorized cluster sorts LAST. Audit 08-25: never
   // rely on punctuation collation ('~' sorts BEFORE digits/CJK/alpha under ICU 'zh') — branch
-  // explicitly on UNCATEGORIZED instead.
-  const k = (e: Entry) => projectFolder(e.task);
+  // explicitly on UNCATEGORIZED instead. Identity uses the case-folded projectKey (2026-08-25)
+  // so casing variants of one project cluster together.
+  const k = (e: Entry) => projectKey(e.task);
   const pa = k(a);
   const pb = k(b);
   if (pa === UNCATEGORIZED && pb === UNCATEGORIZED) {
