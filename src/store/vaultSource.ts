@@ -76,24 +76,36 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Decis
   }
 
   // FR-030b debounce re-read (single-shot, scheduled by TaskStore N seconds after a bounce).
-  // Symmetric with enforceReviewGate: claim the release inside vault.process against the
-  // latest full text, then flip the frontmatter only if we actually claimed. A no-op revalidate
-  // (confirmation never landed) must leave the file byte-identical.
+  // Audit R1 (2026-08-28): the release entry is written ONLY after the frontmatter restore is
+  // confirmed done — the log is immutable, so a pre-emptive entry followed by a failed/skipped
+  // restore would leave a permanent disarm marker lying about the file's state. Order:
+  // ① processFrontMatter restores status (guarded: only from review), ② re-read and verify
+  // status === 'done', ③ only then append the release entry. A concurrent writer that flipped
+  // the status off review between ① and ③ makes step ② bail with no entry written — the
+  // debounce can be re-armed by a fresh bounce later, no false disarm.
   async revalidateReviewGate(path: string, now: Date): Promise<boolean> {
     const file = this.mustFile(path);
-    let claimed = false;
-    await this.app.vault.process(file, (latest) => {
-      const current = parseTaskFile(latest, path);
-      if (!current.ok || !shouldReleaseAfterDebounce(current.task, current.body)) return latest;
-      const fence = /^---\n[\s\S]*?\n---\n?/.exec(latest);
-      claimed = true;
-      return (fence?.[0] ?? '') + applyReviewRelease(current.task, current.body, now).body;
-    });
-    if (!claimed) return false;
+    // Pre-check against the latest full text: predicate false → byte-identical no-op.
+    const before = parseTaskFile(await this.app.vault.read(file), path);
+    if (!before.ok || !shouldReleaseAfterDebounce(before.task, before.body)) return false;
+    let restored = false;
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       if (frontmatter.status !== 'review') return;
       frontmatter.status = 'done';
       frontmatter.completed = localIsoMinute(now);
+      restored = true;
+    });
+    if (!restored) return false;
+    // 写后回读验证 (contract §6): the restore is only real if it survived to disk.
+    const afterFm = parseTaskFile(await this.app.vault.read(file), path);
+    if (!afterFm.ok || afterFm.task.status !== 'done') return false;
+    await this.app.vault.process(file, (latest) => {
+      const current = parseTaskFile(latest, path);
+      // Re-judge the body against the SAME predicate right before appending: the release
+      // entry is the disarm marker, so it must never land on a body that no longer qualifies.
+      if (!current.ok || !shouldReleaseAfterDebounce({ ...current.task, status: 'review' }, current.body)) return latest;
+      const fence = /^---\n[\s\S]*?\n---\n?/.exec(latest);
+      return (fence?.[0] ?? '') + applyReviewRelease(current.task, current.body, now).body;
     });
     return true;
   }

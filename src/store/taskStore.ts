@@ -64,9 +64,9 @@ export class TaskStore {
   private blockedIds = new Set<string>(); // last-reconciled overlay-blocked ids
   private baselined = false; // first reconcile seeds silently, no edge logs
   private listeners = new Set<() => void>();
-  // FR-030b: pending debounce revalidations, one per path. A second bounce replaces the
-  // timer (latest state is what the re-read will judge anyway); the release marker on disk
-  // is the ultimate idempotency, this map only prevents timer pile-up in memory.
+  // FR-030b: pending debounce revalidations. Audit R2 (2026-08-28): keyed by task ID (not
+  // path) so a rename inside the window migrates for free — the timer resolves the id to
+  // whatever path the entry lives at when it fires, and a deleted task simply no-ops.
   private revalidateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
@@ -77,8 +77,15 @@ export class TaskStore {
     private revalidateDelayMs: () => number = () => DEFAULT_REVALIDATE_MS,
   ) {}
 
-  // FR-030b: drop pending debounce timers (plugin onunload) — never fire writes after teardown.
+  // FR-030b: drop pending debounce timers + bar in-flight revalidates (plugin onunload).
+  // Audit R3 (2026-08-28): dispose must stop not-yet-fired timers AND anything already
+  // awaiting a vault write — the generation counter makes late continuations no-op.
+  private disposed = false;
+  private revalidateGeneration = 0;
+
   dispose(): void {
+    this.disposed = true;
+    this.revalidateGeneration++;
     for (const t of this.revalidateTimers.values()) clearTimeout(t);
     this.revalidateTimers.clear();
   }
@@ -128,16 +135,22 @@ export class TaskStore {
   // release just leaves the task in review for the human queue — same as pre-FR-030b).
   private scheduleRevalidate(path: string): void {
     if (!this.reviewGate) return;
-    const existing = this.revalidateTimers.get(path);
+    const id = this.byPath.get(path)?.task.id;
+    if (id === undefined) return;
+    const existing = this.revalidateTimers.get(id);
     if (existing !== undefined) clearTimeout(existing);
     const timer = setTimeout(() => {
-      this.revalidateTimers.delete(path);
-      void this.revalidate(path);
+      this.revalidateTimers.delete(id);
+      // Resolve the id to its CURRENT path — survives a rename inside the window (audit R2);
+      // a deleted/archived task resolves to nothing and the debounce dies harmlessly.
+      const entry = this.entryById(id);
+      if (entry) void this.revalidate(entry.path);
     }, this.revalidateDelayMs());
-    this.revalidateTimers.set(path, timer);
+    this.revalidateTimers.set(id, timer);
   }
 
   private async revalidate(path: string): Promise<void> {
+    const generation = this.revalidateGeneration;
     try {
       await this.reviewGate?.revalidateReviewGate(path, this.now());
     } catch {
@@ -145,10 +158,14 @@ export class TaskStore {
       // the task in review, which is the pre-FR-030b steady state, never corruption.
       return;
     }
+    if (this.disposed || generation !== this.revalidateGeneration) return;
     await this.upsert(path);
   }
 
   async remove(path: string): Promise<void> {
+    // Audit R2 (2026-08-28): no timer cleanup needed here — revalidate timers are keyed by
+    // task id and self-resolve at fire time (deleted task → entryById misses → no-op;
+    // renamed task → fires against the new path). Deleting the entry below is all it takes.
     this.byPath.delete(path);
     this.errorsByPath.delete(path);
     await this.reconcileBlocked();

@@ -30,6 +30,8 @@ const CITE_LINE = 'user-confirm: session=20260824_064634_c34e81 msg=70026 quote=
 
 class MemVault implements VaultReader, LogWriter, ReviewGateWriter {
   files = new Map<string, string>();
+  // Optional slow-vault gate for dispose-in-flight orchestration (audit R3).
+  writeGate?: Promise<void>;
 
   set(path: string, raw: string): void {
     this.files.set(path, raw);
@@ -56,6 +58,7 @@ class MemVault implements VaultReader, LogWriter, ReviewGateWriter {
   }
 
   async revalidateReviewGate(path: string, now: Date): Promise<boolean> {
+    if (this.writeGate) await this.writeGate;
     const parsed = parseTaskFile(await this.read(path), path);
     if (!parsed.ok || !shouldReleaseAfterDebounce(parsed.task, parsed.body)) return false;
     const released = applyReviewRelease(parsed.task, parsed.body, now);
@@ -99,7 +102,9 @@ afterEach(() => {
 });
 
 function seed(path = '03 Tasks/t.md'): string {
-  const task = baseTask();
+  // Unique id per seed: revalidate timers are keyed by task id (audit R2) — real tasks
+  // carry UUIDs; a shared id in fixtures would have timers cannibalize each other.
+  const task = baseTask({ id: path });
   vault.set(
     path,
     serializeTaskFile(task, '## 执行记录\n\n- 2026-08-28 08:00 · `cc`\n  进行中\n'),
@@ -201,6 +206,70 @@ describe('gate debounce: guards and idempotency', () => {
     // acceptable, but never a post-teardown write.
     expect(parsed.ok && parsed.task.status).toBe('review');
     expect(await vault.read(path)).not.toContain('复核门禁放行');
+  });
+
+  it('dispose() while a revalidate is mid-write kills the follow-up upsert (audit R3)', async () => {
+    const path = seed();
+    await store.scan();
+    const raw = await vault.read(path);
+    vault.set(path, raw.replace('status: doing', 'status: done'));
+    await store.upsert(path); // bounce
+    vault.set(
+      path,
+      (await vault.read(path)).replace(
+        '## 执行记录\n',
+        `## 执行记录\n\n- 2026-08-28 08:59 · **doing→done** · \`cc\`\n  收尾\n  ${CITE_LINE}\n`,
+      ),
+    );
+    let releaseGate!: () => void;
+    vault.writeGate = new Promise<void>((r) => (releaseGate = r));
+    await vi.advanceTimersByTimeAsync(8_000); // timer fires, revalidate awaits writeGate
+    store.dispose(); // unload lands mid-write
+    releaseGate();
+    await vi.advanceTimersByTimeAsync(1_000);
+    // The vault write itself completed (obsidian writes are not cancellable), but the
+    // store never re-upserts after dispose — index stays on the pre-release state.
+    const parsed = parseTaskFile(await vault.read(path), path);
+    expect(parsed.ok && parsed.task.status).toBe('done'); // file on disk is fine
+    expect(store.entryByPath(path)?.task.status).toBe('review'); // index untouched post-teardown
+  });
+
+  it('rename inside the window: the id-keyed timer fires against the new path (audit R2)', async () => {
+    const path = seed();
+    await store.scan();
+    const raw = await vault.read(path);
+    vault.set(path, raw.replace('status: doing', 'status: done'));
+    await store.upsert(path); // bounce
+    // Agent lands the citation, then the file is renamed (wireVaultEvents: remove old + upsert new).
+    vault.set(
+      path,
+      (await vault.read(path)).replace(
+        '## 执行记录\n',
+        `## 执行记录\n\n- 2026-08-28 08:59 · **doing→done** · \`cc\`\n  收尾\n  ${CITE_LINE}\n`,
+      ),
+    );
+    const renamed = '03 Tasks/renamed.md';
+    vault.set(renamed, (await vault.read(path)).replace('03 Tasks', '03 Tasks'));
+    vault.files.delete(path);
+    await store.remove(path);
+    await store.upsert(renamed);
+    await vi.advanceTimersByTimeAsync(8_000);
+    const parsed = parseTaskFile(await vault.read(renamed), renamed);
+    expect(parsed.ok && parsed.task.status).toBe('done');
+    expect(await vault.read(renamed)).toContain('复核门禁放行');
+  });
+
+  it('delete inside the window: the timer resolves nothing and writes nowhere (audit R2)', async () => {
+    const path = seed();
+    await store.scan();
+    const raw = await vault.read(path);
+    vault.set(path, raw.replace('status: doing', 'status: done'));
+    await store.upsert(path); // bounce schedules the id-keyed timer
+    vault.files.delete(path);
+    await store.remove(path);
+    await vi.advanceTimersByTimeAsync(8_000); // fires; entryById misses → no-op
+    expect(vault.files.has(path)).toBe(false);
+    expect(vault.files.size).toBe(0);
   });
 
   it('re-done after a bounce is disarmed by the gate marker: no second gate entry, no release (audit R5)', async () => {
