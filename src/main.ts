@@ -144,7 +144,11 @@ export default class TaskVaultPlugin extends Plugin {
     for (const ref of wireVaultEvents(this.app, this.store)) this.registerEvent(ref);
 
     // Build the index once the vault's file list is ready, then let events keep it live.
-    this.app.workspace.onLayoutReady(() => void this.store.scan());
+    // Audit nit (PR #42 复审): a layout callback firing after unload would run one stray
+    // scan on a disposed store — harmless, but guarded for symmetry with bootstrap.
+    this.app.workspace.onLayoutReady(() => {
+      if (!this.unloaded) void this.store.scan();
+    });
 
     this.addSettingTab(
       new TaskVaultSettingTab(this.app, this, this.config, getT, () => this.applyLanguage(), () =>
