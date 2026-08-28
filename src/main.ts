@@ -58,12 +58,20 @@ export default class TaskVaultPlugin extends Plugin {
     void this.bootstrap();
   }
 
+  // Audit R1 (PR #42): onload is fire-and-forget async; an unload racing the bootstrap must
+  // not just survive the optional chains — the late bootstrap must stop, and never start the
+  // API afterwards. `unloaded` is set synchronously in onunload; the only await in bootstrap
+  // before anything observable happens is config.load, so a checkpoint right after it closes
+  // the race (everything from there to reconcileApi is synchronous, unload cannot interleave).
+  private unloaded = false;
+
   private async bootstrap(): Promise<void> {
     const dir = taskvaultDir(this);
     this.config = new ConfigService(
       new NodeJsonStore<Config>(`${dir}/config.json`, DEFAULT_CONFIG, normalizeConfig),
     );
     await this.config.load();
+    if (this.unloaded) return; // plugin died mid-bootstrap — create nothing, start nothing
     this.recomputeLang();
     const getT = (): T => this.t;
 
@@ -136,7 +144,11 @@ export default class TaskVaultPlugin extends Plugin {
     for (const ref of wireVaultEvents(this.app, this.store)) this.registerEvent(ref);
 
     // Build the index once the vault's file list is ready, then let events keep it live.
-    this.app.workspace.onLayoutReady(() => void this.store.scan());
+    // Audit nit (PR #42 复审): a layout callback firing after unload would run one stray
+    // scan on a disposed store — harmless, but guarded for symmetry with bootstrap.
+    this.app.workspace.onLayoutReady(() => {
+      if (!this.unloaded) void this.store.scan();
+    });
 
     this.addSettingTab(
       new TaskVaultSettingTab(this.app, this, this.config, getT, () => this.applyLanguage(), () =>
@@ -202,14 +214,18 @@ export default class TaskVaultPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.store.dispose(); // FR-030b: kill pending debounce timers before the API tears down
-    void this.apiLifecycle.close();
+    this.unloaded = true;
+    // FR-030b + PR #42 audit: dispose pending debounce timers and close the API; optional
+    // chains cover an unload that raced the (now checkpointed) bootstrap.
+    this.store?.dispose();
+    void this.apiLifecycle?.close();
   }
 
   // Start/stop/restart the local API to match config (FR-034). Serialized through ApiLifecycle so a
   // rapid toggle never orphans a listener; a bind failure (e.g. EADDRINUSE) surfaces a Notice via
   // onError, never crashes.
   private reconcileApi(): Promise<void> {
+    if (this.unloaded) return Promise.resolve(); // late settings toggle after unload: no-op
     return this.apiLifecycle.reconcile();
   }
 

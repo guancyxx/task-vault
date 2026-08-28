@@ -29,8 +29,9 @@ const DEBOUNCE_MS = 200;
 // vault.process callback. Returns the new full text, or null when the fence doesn't hold a
 // review status (parseTaskFile already guaranteed ok, so null = concurrent shape change —
 // abort). Only `status` and `completed` lines are touched; every other fence line (tags list,
-// mirror block, …) is kept verbatim.
-function restoreDoneInFence(latest: string, completed: string): string | null {
+// mirror block, …) is kept verbatim. Exported for the malformed-frontmatter regression
+// matrix (audit nit, PR #41 follow-up) — no other consumer.
+export function restoreDoneInFence(latest: string, completed: string): string | null {
   const fence = /^---\n([\s\S]*?)\n---\n?/.exec(latest);
   if (!fence) return null;
   const lines = fence[1].split('\n');
