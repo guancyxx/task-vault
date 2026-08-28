@@ -3,7 +3,7 @@ import { groupSortKey, TaskStore, type Entry, type LogWriter, type VaultReader }
 import { serializeTaskFile } from '../src/util/frontmatter';
 import type { EntryInput } from '../src/log/executionLog';
 import type { Status, Task } from '../src/model/types';
-import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from '../src/store/reviewGate';
+import { applyReviewGate, applyReviewRelease, shouldGuardExternalDone, shouldReleaseAfterDebounce, type ReviewGateWriter } from '../src/store/reviewGate';
 import { parseTaskFile } from '../src/util/frontmatter';
 
 const NOW = new Date(2026, 7, 19, 14, 32); // local 2026-08-19 14:32 (Wed)
@@ -38,6 +38,19 @@ class MemVault implements VaultReader, LogWriter, ReviewGateWriter {
     if (!parsed.ok || !shouldGuardExternalDone(previous, parsed.task, parsed.body)) return false;
     const guarded = applyReviewGate(parsed.task, parsed.body, now);
     this.set(path, serializeTaskFile(guarded.task, guarded.body));
+    return true;
+  }
+  // FR-030b debounce revalidate, in-memory mirror. VaultSource does the frontmatter-first
+  // ordering (audit R1); the pure end state is identical here, so the orchestration suite
+  // (this file) tests TaskStore-level behavior against this simplified writer.
+  // `writeGate`, when set, delays the write to simulate a slow vault (dispose-in-flight test).
+  writeGate?: Promise<void>;
+  async revalidateReviewGate(path: string, now: Date): Promise<boolean> {
+    if (this.writeGate) await this.writeGate;
+    const parsed = parseTaskFile(await this.read(path), path);
+    if (!parsed.ok || !shouldReleaseAfterDebounce(parsed.task, parsed.body)) return false;
+    const released = applyReviewRelease(parsed.task, parsed.body, now);
+    this.set(path, serializeTaskFile(released.task, released.body));
     return true;
   }
 }

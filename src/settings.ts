@@ -142,6 +142,21 @@ export class TaskVaultSettingTab extends PluginSettingTab {
           }),
       );
 
+    // FR-030b: gate bounce → debounce re-read delay. Effective value is clamped 5–15s at the
+    // consumer; the raw value is stored so an out-of-range entry stays editable in the UI.
+    new Setting(containerEl)
+      .setName(t('settings.reviewDebounce'))
+      .setDesc(t('settings.reviewDebounceDesc'))
+      .addText((ta) =>
+        ta
+          .setPlaceholder('8')
+          .setValue(String(cfg.review_debounce_seconds))
+          .onChange((v) => {
+            const n = Number(v);
+            if (Number.isFinite(n) && n > 0) void this.config.update({ review_debounce_seconds: n });
+          }),
+      );
+
     new Setting(containerEl).setName(t('settings.apiHeading')).setHeading();
 
     new Setting(containerEl)

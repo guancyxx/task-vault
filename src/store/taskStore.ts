@@ -40,6 +40,17 @@ export type BucketedView = Record<Bucket, Entry[]>;
 
 const noopWriter: LogWriter = { async appendLog() {} };
 
+// FR-030b: default debounce re-read delay. Configurable 5–15s via config.review_debounce_seconds;
+// clamped here so a bad config can never stretch the window absurdly.
+export const DEFAULT_REVALIDATE_MS = 8_000;
+const MIN_REVALIDATE_MS = 5_000;
+const MAX_REVALIDATE_MS = 15_000;
+
+export function clampRevalidateMs(seconds: number): number {
+  if (!Number.isFinite(seconds)) return DEFAULT_REVALIDATE_MS;
+  return Math.min(MAX_REVALIDATE_MS, Math.max(MIN_REVALIDATE_MS, seconds * 1_000));
+}
+
 // The automation actor for derived blocked-edge records (contract §7 actor set).
 const AUTO_ACTOR = 'hermes' as const;
 
@@ -53,13 +64,31 @@ export class TaskStore {
   private blockedIds = new Set<string>(); // last-reconciled overlay-blocked ids
   private baselined = false; // first reconcile seeds silently, no edge logs
   private listeners = new Set<() => void>();
+  // FR-030b: pending debounce revalidations. Audit R2 (2026-08-28): keyed by task ID (not
+  // path) so a rename inside the window migrates for free — the timer resolves the id to
+  // whatever path the entry lives at when it fires, and a deleted task simply no-ops.
+  private revalidateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     private reader: VaultReader,
     private writer: LogWriter = noopWriter,
     private now: () => Date = () => new Date(),
     private reviewGate?: ReviewGateWriter,
+    private revalidateDelayMs: () => number = () => DEFAULT_REVALIDATE_MS,
   ) {}
+
+  // FR-030b: drop pending debounce timers + bar in-flight revalidates (plugin onunload).
+  // Audit R3 (2026-08-28): dispose must stop not-yet-fired timers AND anything already
+  // awaiting a vault write — the generation counter makes late continuations no-op.
+  private disposed = false;
+  private revalidateGeneration = 0;
+
+  dispose(): void {
+    this.disposed = true;
+    this.revalidateGeneration++;
+    for (const t of this.revalidateTimers.values()) clearTimeout(t);
+    this.revalidateTimers.clear();
+  }
 
   onChange(cb: () => void): () => void {
     this.listeners.add(cb);
@@ -94,12 +123,55 @@ export class TaskStore {
       (await this.reviewGate?.enforceReviewGate(path, previous.task.status, this.now()))
     ) {
       await this.load(path);
+      this.scheduleRevalidate(path);
     }
     await this.reconcileBlocked();
     this.emit();
   }
 
+  // FR-030b debounce: N seconds after a bounce, re-read once. Confirmation landed → restore
+  // done + release entry; not landed → the file stays in review, nothing written. The disk
+  // marker is the idempotency anchor; this timer is best-effort and safe to lose (a missed
+  // release just leaves the task in review for the human queue — same as pre-FR-030b).
+  private scheduleRevalidate(path: string): void {
+    if (!this.reviewGate) return;
+    const id = this.byPath.get(path)?.task.id;
+    if (id === undefined) return;
+    const existing = this.revalidateTimers.get(id);
+    if (existing !== undefined) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.revalidateTimers.delete(id);
+      // Resolve the id to its CURRENT path — survives a rename inside the window (audit R2);
+      // a deleted/archived task resolves to nothing and the debounce dies harmlessly.
+      const entry = this.entryById(id);
+      if (entry) void this.revalidate(entry.path);
+    }, this.revalidateDelayMs());
+    this.revalidateTimers.set(id, timer);
+  }
+
+  private async revalidate(path: string): Promise<void> {
+    const generation = this.revalidateGeneration;
+    try {
+      await this.reviewGate?.revalidateReviewGate(path, this.now());
+    } catch {
+      // File deleted/renamed mid-window or vault hiccup: swallow — losing the retry leaves
+      // the task in review, which is the pre-FR-030b steady state, never corruption.
+      return;
+    }
+    if (this.disposed || generation !== this.revalidateGeneration) return;
+    // Re-review R3: a dedicated generation-aware refresh, NOT upsert — upsert's internal
+    // awaits have no checkpoints, and its gate branch must not re-run off a timer anyway.
+    await this.load(path);
+    if (this.disposed || generation !== this.revalidateGeneration) return;
+    await this.reconcileBlocked();
+    if (this.disposed || generation !== this.revalidateGeneration) return;
+    this.emit();
+  }
+
   async remove(path: string): Promise<void> {
+    // Audit R2 (2026-08-28): no timer cleanup needed here — revalidate timers are keyed by
+    // task id and self-resolve at fire time (deleted task → entryById misses → no-op;
+    // renamed task → fires against the new path). Deleting the entry below is all it takes.
     this.byPath.delete(path);
     this.errorsByPath.delete(path);
     await this.reconcileBlocked();
@@ -145,16 +217,21 @@ export class TaskStore {
 
     if (this.baselined) {
       const ts = this.now();
+      const generation = this.revalidateGeneration;
+      // Third-audit R3: the cancel check is INSIDE the loop — a dispose landing while one
+      // appendLog is pending must stop the remaining writes, not just the outer callers.
+      const cancelled = (): boolean => this.disposed || generation !== this.revalidateGeneration;
       for (const id of openNow) {
-        if (this.blockedIds.has(id)) continue;
+        if (this.blockedIds.has(id) || cancelled()) continue;
         const e = byId.get(id);
         if (e) await this.writer.appendLog(e.path, mkEdge(ts, e.task.status, 'blocked', '依赖未完成，自动阻塞'));
       }
       for (const id of this.blockedIds) {
-        if (openNow.has(id)) continue;
+        if (openNow.has(id) || cancelled()) continue;
         const e = byId.get(id);
         if (e) await this.writer.appendLog(e.path, mkEdge(ts, 'blocked', e.task.status, '依赖已完成，自动解除'));
       }
+      if (cancelled()) return; // leave blockedIds/baselined untouched for the next live pass
     }
     this.blockedIds = openNow;
     this.baselined = true;

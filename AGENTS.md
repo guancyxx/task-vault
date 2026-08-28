@@ -117,3 +117,4 @@ actor ∈ hermes|cc|codex|user。新条目插在 `## 执行记录` 区**最前�
 - `actor ∈ {hermes, cc, codex}` 时，状态机拒绝任何 `X → done`；agent 收尾只能写 `X → review`。
 - `review → done` 仅 `actor=user` 允许。插件本地 UI 默认以 user 身份调用；Reminders 勾选完成是独立的用户确认通道，可由同步器直接写 done。
 - FR-030a 聊天确认引用通道的唯一豁免：agent 携有效 citation 直接写 done 时，必须遵守 §6 的两步锁序（body/citation 先行，frontmatter 后写）。
+- **门禁防抖（FR-030b，2026-08-28 定）**：门禁打回 review 后，插件延迟 `review_debounce_seconds`（默认 8s，有效范围 5–15，消费端钳制）重读一次文件——确认通道（citation/`user` 边/Reminders 标记）在窗口内补齐则自动恢复 done 并落「复核门禁放行」条目；未补齐则维持 review，**不落第二条干预条目**。放行条目是普通进展条目（不带迁移标签，`hermes` actor），Python 审计判据无需变更。agent 行为约定：被门禁打回或收到 409 后，等 ≥10s 再检查任务终态，不要立即回写。
