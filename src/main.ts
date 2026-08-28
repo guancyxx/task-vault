@@ -202,8 +202,11 @@ export default class TaskVaultPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.store.dispose(); // FR-030b: kill pending debounce timers before the API tears down
-    void this.apiLifecycle.close();
+    // Follow-up nit (PR #41 audit): onload is fire-and-forget async; an unload racing the
+    // bootstrap would throw on the undefined store. The optional chain keeps unload a safe
+    // no-op instead of crashing teardown for a plugin that never finished loading.
+    this.store?.dispose(); // FR-030b: kill pending debounce timers before the API tears down
+    void this.apiLifecycle?.close();
   }
 
   // Start/stop/restart the local API to match config (FR-034). Serialized through ApiLifecycle so a

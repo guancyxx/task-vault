@@ -42,6 +42,7 @@ export class TaskVaultSettingTab extends PluginSettingTab {
       { name: t('settings.dispatchHook'), description: t('settings.dispatchHookDesc') },
       { name: t('settings.alldayRemind'), description: t('settings.alldayRemindDesc') },
       { name: t('settings.backstop'), description: t('settings.backstopDesc') },
+      { name: t('settings.reviewDebounce'), description: t('settings.reviewDebounceDesc') },
       { name: t('settings.apiEnabled'), description: t('settings.apiEnabledDesc') },
       { name: t('settings.apiPort'), description: t('settings.apiPortDesc') },
     ];
