@@ -17,10 +17,10 @@ describe('restoreDoneInFence malformed-fence matrix (PR #41 follow-up nit)', () 
     );
   });
 
-  it('closing fence followed by TWO newlines keeps both (body slice byte-exact)', () => {
+  it('closing fence followed by TWO newlines keeps both (full-string equality)', () => {
     const raw = '---\nstatus: review\n---\n\n## 执行记录\n';
     const out = restoreDoneInFence(raw, TS)!;
-    expect(out.startsWith('---\nstatus: done\ncompleted: 2026-08-28T09:00\n---\n\n')).toBe(true);
+    expect(out).toBe(`---\nstatus: done\ncompleted: ${TS}\n---\n\n## 执行记录\n`);
   });
 
   it('no trailing newline at EOF still round-trips', () => {
@@ -30,12 +30,13 @@ describe('restoreDoneInFence malformed-fence matrix (PR #41 follow-up nit)', () 
     expect(out).toContain('status: done');
   });
 
-  it('tags list and mirror block lines survive verbatim', () => {
+  it('tags list and mirror block lines survive verbatim (full-string equality)', () => {
     const raw =
       '---\nstatus: review\ntags:\n- repo/task-vault\n- plugin\nmirror:\n  reminders-uuid: ABCD\n---\n';
     const out = restoreDoneInFence(raw, TS)!;
-    expect(out).toContain('- repo/task-vault\n- plugin');
-    expect(out).toContain('  reminders-uuid: ABCD');
+    expect(out).toBe(
+      `---\nstatus: done\ncompleted: ${TS}\ntags:\n- repo/task-vault\n- plugin\nmirror:\n  reminders-uuid: ABCD\n---\n`,
+    );
   });
 
   it('duplicate status lines abort atomically (null, no partial rewrite)', () => {
@@ -58,13 +59,19 @@ describe('restoreDoneInFence malformed-fence matrix (PR #41 follow-up nit)', () 
   });
 
   it('existing stale completed line is refreshed in place (pins current behavior)', () => {
-    // Current behavior: the FIRST completed: line is rewritten; a second duplicate (itself
-    // malformed) is left verbatim. Parser-side last-wins on read means the stale duplicate
-    // would win on parse — but the verify read after the RMW compares status/marker only,
-    // so this is benign; pinned here so a future change is deliberate.
     const raw = '---\nstatus: review\ncompleted: 2020-01-01T00:00\n---\n';
     const out = restoreDoneInFence(raw, TS)!;
-    expect(out).toContain(`completed: ${TS}`);
+    expect(out).toBe(`---\nstatus: done\ncompleted: ${TS}\n---\n`);
     expect(out).not.toContain('completed: 2020-01-01T00:00');
+  });
+
+  it('duplicate completed lines: FIRST is rewritten, SECOND is left verbatim (pins current behavior)', () => {
+    // Real two-line duplicate (the previous fixture had only one completed line — the claimed
+    // coverage did not exist). Parser reads last-wins, so the stale second line would win on
+    // parse; the post-RMW verify compares status/marker only, making this benign. Pinned so
+    // any future change here is deliberate.
+    const raw = '---\nstatus: review\ncompleted: 2020-01-01T00:00\ncompleted: 2021-06-30T12:00\n---\n';
+    const out = restoreDoneInFence(raw, TS)!;
+    expect(out).toBe(`---\nstatus: done\ncompleted: ${TS}\ncompleted: 2021-06-30T12:00\n---\n`);
   });
 });
