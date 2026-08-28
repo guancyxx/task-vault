@@ -7,8 +7,8 @@ import { EMPTY_LEDGER, HookRunner, NodeHookExec, normalizeLedger, type Ledger } 
 import { createT, resolveLang, type ResolvedLang, type T } from './i18n';
 import { TaskVaultSettingTab } from './settings';
 import { NodeJsonStore } from './store/jsonStore';
+import { clampRevalidateMs, TaskStore } from './store/taskStore';
 import { TaskActions } from './store/taskActions';
-import { TaskStore } from './store/taskStore';
 import { VaultSource, wireVaultEvents } from './store/vaultSource';
 import { parseCapture } from './view/captureParse';
 import { CAPTURE_COMMAND_ROW, COMMAND_ROWS, registerCommands } from './view/commands';
@@ -75,7 +75,11 @@ export default class TaskVaultPlugin extends Plugin {
     });
 
     const source = new VaultSource(this.app);
-    this.store = new TaskStore(source, source, () => new Date(), source);
+    // FR-030b: the gate-debounce re-read delay is read live from config so a settings change
+    // applies to the next bounce without a reload; clamped to 5–15s at the consumer.
+    this.store = new TaskStore(source, source, () => new Date(), source, () =>
+      clampRevalidateMs(this.config.get().review_debounce_seconds),
+    );
     this.actions = new TaskActions(this.app, this.store, source, hooks, 'user', () => new Date(), getT);
     this.apiSource = source;
     this.apiHooks = hooks;
@@ -198,6 +202,7 @@ export default class TaskVaultPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.store.dispose(); // FR-030b: kill pending debounce timers before the API tears down
     void this.apiLifecycle.close();
   }
 

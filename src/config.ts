@@ -25,6 +25,7 @@ export interface Config {
   agent_tokens: AgentTokens;
   projects_folder: string; // FR-041: where 新建项目 creates notes; '' = vault root
   dashboard_file: string; // FR-041: root nav note the command registers in; '' = skip registering
+  review_debounce_seconds: number; // FR-030b: gate bounce → re-read delay (clamped 5–15)
 }
 
 export const DEFAULT_API_PORT = 39187;
@@ -41,6 +42,7 @@ export const DEFAULT_CONFIG: Config = {
   agent_tokens: {},
   projects_folder: '01 Projects',
   dashboard_file: 'Dashboard.md',
+  review_debounce_seconds: 8,
 };
 
 const UI_LANGUAGES: readonly Lang[] = ['auto', 'zh-CN', 'en'];
@@ -74,6 +76,12 @@ export function normalizeConfig(raw: unknown): Config {
     // FR-041: strip slashes so the paths join cleanly; '' stays '' (= vault root / skip).
     projects_folder: typeof r.projects_folder === 'string' ? r.projects_folder.replace(/^\/+|\/+$/g, '') : DEFAULT_CONFIG.projects_folder,
     dashboard_file: typeof r.dashboard_file === 'string' ? r.dashboard_file.replace(/^\/+|\/+$/g, '') : DEFAULT_CONFIG.dashboard_file,
+    // FR-030b: any non-finite/non-number falls back to the default; range enforced by the
+    // consumer's clamp (taskStore.clampRevalidateMs) so config stays permissive on disk.
+    review_debounce_seconds:
+      typeof r.review_debounce_seconds === 'number' && Number.isFinite(r.review_debounce_seconds)
+        ? r.review_debounce_seconds
+        : DEFAULT_CONFIG.review_debounce_seconds,
   };
 }
 

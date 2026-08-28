@@ -200,6 +200,8 @@ export const en = {
   'settings.alldayRemindDesc': 'Reminder time on the due date for tasks without a specific time (HH:MM).',
   'settings.backstop': 'Backstop dispatch (min)',
   'settings.backstopDesc': 'Minutes after delegation with no pickup before the backstop cron re-dispatches.',
+  'settings.reviewDebounce': 'Review-gate debounce (s)',
+  'settings.reviewDebounceDesc': 'After the gate bounces a done to review, re-read once after this many seconds: a confirmation landing inside the two-step-write window auto-restores done (effective range 5–15).',
 
   // FR-034 built-in local API.
   'settings.apiHeading': 'Local API',

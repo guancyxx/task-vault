@@ -183,6 +183,8 @@ export const zh: Record<keyof typeof en, string> = {
   'settings.alldayRemindDesc': '无具体时刻的任务，到期日的提醒时间（HH:MM）。',
   'settings.backstop': '兜底派发阈值（分钟）',
   'settings.backstopDesc': '委派后经过此分钟数仍无接单记录，兜底 cron 补派。',
+  'settings.reviewDebounce': '复核门禁防抖（秒）',
+  'settings.reviewDebounceDesc': '门禁打回 review 后，延迟此秒数重读一次：两步写窗口内确认补齐则自动恢复 done（有效范围 5–15）。',
 
   // FR-034 内置本地 API。
   'settings.apiHeading': '本地 API',

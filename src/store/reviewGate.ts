@@ -90,4 +90,55 @@ export function applyReviewGate(task: Task, body: string, now: Date): { task: Ta
 
 export interface ReviewGateWriter {
   enforceReviewGate(path: string, previous: Status, now: Date): Promise<boolean>;
+  revalidateReviewGate(path: string, now: Date): Promise<boolean>;
 }
+
+// FR-030b debounce (approved 2026-08-28): after the gate bounces a done write back to review,
+// a single re-read is scheduled N seconds later. If a confirmation channel has landed by then
+// (the agent's citation from the two-step done write), the done state is restored and a
+// release entry recorded. If not, the review bounce stands and NOTHING is written (no second
+// intervention entry — acceptance criterion "干预记录不重复落").
+//
+// Idempotency: the release entry text doubles as the disarm marker. A second revalidate pass
+// (or a re-gated file that already carries a release) must never double-release, and a user
+// confirmation that arrived inside the window leaves the file to the normal confirmation
+// channels — we only restore what we ourselves bounced.
+export const REVIEW_RELEASE_TEXT = '复核门禁放行：防抖窗口内确认已补齐，恢复 done（FR-030b）';
+
+function hasReleaseMarker(body: string): boolean {
+  return parseLogEntries(body).some(
+    (entry) => entry.text.includes(REVIEW_RELEASE_TEXT),
+  );
+}
+
+// Pure half of the revalidate: does this (task, body) qualify for a release right now?
+// Requires: status is review (our bounce), the gate's own intervention entry exists (so we
+// never release a review a human set), no release yet, and a confirmation channel present.
+export function shouldReleaseAfterDebounce(task: Task, body: string): boolean {
+  return (
+    task.status === 'review' &&
+    hasGateMarker(body) &&
+    !hasReleaseMarker(body) &&
+    hasUserDoneConfirmation(body)
+  );
+}
+
+// Pure half of the release: status back to done + completed restored + release entry.
+export function applyReviewRelease(task: Task, body: string, now: Date): { task: Task; body: string } {
+  const released = { ...task, status: 'done' as const, completed: localIsoMinute(now) };
+  return {
+    task: released,
+    body: recordEntry(body, {
+      ts: now,
+      actor: AUTO_ACTOR,
+      text: REVIEW_RELEASE_TEXT,
+    }),
+  };
+}
+
+// `YYYY-MM-DDTHH:MM` local — the on-disk `completed` stamp format (statusMachine).
+export function localIsoMinute(d: Date): string {
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+

@@ -12,7 +12,14 @@ import { isLibraryPath, taskDir, taskPath as computeTaskPath } from './taskPaths
 import type { DecisionWriter, SectionWriter } from './taskActions';
 import { DELEGATE_HEADING } from './taskActions';
 import type { LogWriter, TaskStore, VaultReader } from './taskStore';
-import { applyReviewGate, shouldGuardExternalDone, type ReviewGateWriter } from './reviewGate';
+import {
+  applyReviewGate,
+  applyReviewRelease,
+  localIsoMinute,
+  shouldGuardExternalDone,
+  shouldReleaseAfterDebounce,
+  type ReviewGateWriter,
+} from './reviewGate';
 
 export const TASKS_DIR = '03 Tasks/';
 const DEBOUNCE_MS = 200;
@@ -64,6 +71,29 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Decis
       if (frontmatter.status !== 'done') return;
       frontmatter.status = 'review';
       delete frontmatter.completed;
+    });
+    return true;
+  }
+
+  // FR-030b debounce re-read (single-shot, scheduled by TaskStore N seconds after a bounce).
+  // Symmetric with enforceReviewGate: claim the release inside vault.process against the
+  // latest full text, then flip the frontmatter only if we actually claimed. A no-op revalidate
+  // (confirmation never landed) must leave the file byte-identical.
+  async revalidateReviewGate(path: string, now: Date): Promise<boolean> {
+    const file = this.mustFile(path);
+    let claimed = false;
+    await this.app.vault.process(file, (latest) => {
+      const current = parseTaskFile(latest, path);
+      if (!current.ok || !shouldReleaseAfterDebounce(current.task, current.body)) return latest;
+      const fence = /^---\n[\s\S]*?\n---\n?/.exec(latest);
+      claimed = true;
+      return (fence?.[0] ?? '') + applyReviewRelease(current.task, current.body, now).body;
+    });
+    if (!claimed) return false;
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      if (frontmatter.status !== 'review') return;
+      frontmatter.status = 'done';
+      frontmatter.completed = localIsoMinute(now);
     });
     return true;
   }

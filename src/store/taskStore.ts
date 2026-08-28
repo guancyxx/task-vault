@@ -40,6 +40,17 @@ export type BucketedView = Record<Bucket, Entry[]>;
 
 const noopWriter: LogWriter = { async appendLog() {} };
 
+// FR-030b: default debounce re-read delay. Configurable 5–15s via config.review_debounce_seconds;
+// clamped here so a bad config can never stretch the window absurdly.
+export const DEFAULT_REVALIDATE_MS = 8_000;
+const MIN_REVALIDATE_MS = 5_000;
+const MAX_REVALIDATE_MS = 15_000;
+
+export function clampRevalidateMs(seconds: number): number {
+  if (!Number.isFinite(seconds)) return DEFAULT_REVALIDATE_MS;
+  return Math.min(MAX_REVALIDATE_MS, Math.max(MIN_REVALIDATE_MS, seconds * 1_000));
+}
+
 // The automation actor for derived blocked-edge records (contract §7 actor set).
 const AUTO_ACTOR = 'hermes' as const;
 
@@ -53,13 +64,24 @@ export class TaskStore {
   private blockedIds = new Set<string>(); // last-reconciled overlay-blocked ids
   private baselined = false; // first reconcile seeds silently, no edge logs
   private listeners = new Set<() => void>();
+  // FR-030b: pending debounce revalidations, one per path. A second bounce replaces the
+  // timer (latest state is what the re-read will judge anyway); the release marker on disk
+  // is the ultimate idempotency, this map only prevents timer pile-up in memory.
+  private revalidateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     private reader: VaultReader,
     private writer: LogWriter = noopWriter,
     private now: () => Date = () => new Date(),
     private reviewGate?: ReviewGateWriter,
+    private revalidateDelayMs: () => number = () => DEFAULT_REVALIDATE_MS,
   ) {}
+
+  // FR-030b: drop pending debounce timers (plugin onunload) — never fire writes after teardown.
+  dispose(): void {
+    for (const t of this.revalidateTimers.values()) clearTimeout(t);
+    this.revalidateTimers.clear();
+  }
 
   onChange(cb: () => void): () => void {
     this.listeners.add(cb);
@@ -94,9 +116,36 @@ export class TaskStore {
       (await this.reviewGate?.enforceReviewGate(path, previous.task.status, this.now()))
     ) {
       await this.load(path);
+      this.scheduleRevalidate(path);
     }
     await this.reconcileBlocked();
     this.emit();
+  }
+
+  // FR-030b debounce: N seconds after a bounce, re-read once. Confirmation landed → restore
+  // done + release entry; not landed → the file stays in review, nothing written. The disk
+  // marker is the idempotency anchor; this timer is best-effort and safe to lose (a missed
+  // release just leaves the task in review for the human queue — same as pre-FR-030b).
+  private scheduleRevalidate(path: string): void {
+    if (!this.reviewGate) return;
+    const existing = this.revalidateTimers.get(path);
+    if (existing !== undefined) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.revalidateTimers.delete(path);
+      void this.revalidate(path);
+    }, this.revalidateDelayMs());
+    this.revalidateTimers.set(path, timer);
+  }
+
+  private async revalidate(path: string): Promise<void> {
+    try {
+      await this.reviewGate?.revalidateReviewGate(path, this.now());
+    } catch {
+      // File deleted/renamed mid-window or vault hiccup: swallow — losing the retry leaves
+      // the task in review, which is the pre-FR-030b steady state, never corruption.
+      return;
+    }
+    await this.upsert(path);
   }
 
   async remove(path: string): Promise<void> {
