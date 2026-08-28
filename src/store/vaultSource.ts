@@ -25,6 +25,36 @@ import {
 export const TASKS_DIR = '03 Tasks/';
 const DEBOUNCE_MS = 200;
 
+// FR-030b: rewrite the frontmatter fence for a review→done restore, entirely inside a
+// vault.process callback. Returns the new full text, or null when the fence doesn't hold a
+// review status (parseTaskFile already guaranteed ok, so null = concurrent shape change —
+// abort). Only `status` and `completed` lines are touched; every other fence line (tags list,
+// mirror block, …) is kept verbatim.
+function restoreDoneInFence(latest: string, completed: string): string | null {
+  const fence = /^---\n([\s\S]*?)\n---\n?/.exec(latest);
+  if (!fence) return null;
+  const lines = fence[1].split('\n');
+  let sawStatus = false;
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^status:\s*(\S+)\s*$/.exec(lines[i]);
+    if (!m) continue;
+    if (m[1] !== 'review') return null; // shape drifted mid-flight → abort atomically
+    lines[i] = 'status: done';
+    sawStatus = true;
+  }
+  if (!sawStatus) return null;
+  const out = [...lines];
+  const doneIdx = out.findIndex((l) => /^status:/.test(l));
+  // completed goes right after status if absent (a gate bounce deleted it); an existing
+  // stale completed line is refreshed.
+  const completedIdx = out.findIndex((l) => /^completed:/.test(l));
+  if (completedIdx >= 0) out[completedIdx] = `completed: ${completed}`;
+  else out.splice(doneIdx + 1, 0, `completed: ${completed}`);
+  // Rebuild the fence exactly as matched: `---\n<lines>\n---` + the trailing \n the
+  // original fence consumed (if any), so the body slice still starts where it did.
+  return `---\n${out.join('\n')}\n---${fence[0].endsWith('\n') ? '\n' : ''}` + latest.slice(fence[0].length);
+}
+
 // A task file lives anywhere under `03 Tasks/` except `_archive/` (two-level project/month
 // scheme — see taskPaths.ts). Non-.md and archive paths are excluded.
 export function isTaskPath(path: string): boolean {
@@ -77,45 +107,29 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Decis
   }
 
   // FR-030b debounce re-read (single-shot, scheduled by TaskStore N seconds after a bounce).
-  // Audit R1 + re-review R1 (2026-08-28): the release entry is a PERMANENT disarm marker, so
-  // it may only land on a file that is verifiably done at append time. Order:
-  // ① pre-check predicate (byte-identical no-op when false),
-  // ② processFrontMatter restore (guarded: only from review),
-  // ③ re-read + verify status === 'done',
-  // ④ vault.process append — the callback re-checks the REAL status === 'done' plus the same
-  //    predicate (re-evaluated with review semantics solely to reuse the gate-marker/
-  //    confirmation window logic); a concurrent flip to review/doing/todo between ③ and ④
-  //    aborts with no entry written (no false disarm, re-armable by a fresh bounce),
-  // ⑤ 写后回读验证 (contract §6): done + release marker actually on disk, else report false.
+  // Third-audit R1 (2026-08-28): predicate + frontmatter restore + release entry land in ONE
+  // vault.process read-modify-write. The earlier two-step shape (processFrontMatter, then
+  // vault.process) left interleaving windows where a citation removed between the steps could
+  // strand an UNCONFIRMED done on disk with the gate marker disarming future bounces. A single
+  // RMW sees one consistent snapshot — the callback re-runs the FULL predicate against the
+  // latest text, and status/completed/entry commit together or not at all. Contract §6 prefers
+  // processFrontMatter for frontmatter edits; atomicity outweighs that preference here —
+  // vault.process is still Obsidian's own cache-coherent API, never raw fs. 写后回读 (§6)
+  // verifies the end state afterwards; an external write racing ours simply wins whole-file
+  // (detected by the verify read → false, no partial state of ours survives).
   async revalidateReviewGate(path: string, now: Date): Promise<boolean> {
     const file = this.mustFile(path);
-    const before = parseTaskFile(await this.app.vault.read(file), path);
-    if (!before.ok || !shouldReleaseAfterDebounce(before.task, before.body)) return false;
-    let restored = false;
-    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      if (frontmatter.status !== 'review') return;
-      frontmatter.status = 'done';
-      frontmatter.completed = localIsoMinute(now);
-      restored = true;
-    });
-    if (!restored) return false;
-    const afterFm = parseTaskFile(await this.app.vault.read(file), path);
-    if (!afterFm.ok || afterFm.task.status !== 'done') return false;
-    let appended = false;
+    let applied = false;
     await this.app.vault.process(file, (latest) => {
       const current = parseTaskFile(latest, path);
-      if (
-        !current.ok ||
-        current.task.status !== 'done' ||
-        !shouldReleaseAfterDebounce({ ...current.task, status: 'review' }, current.body)
-      ) {
-        return latest;
-      }
-      const fence = /^---\n[\s\S]*?\n---\n?/.exec(latest);
-      appended = true;
-      return (fence?.[0] ?? '') + applyReviewRelease(current.task, current.body, now).body;
+      if (!current.ok || !shouldReleaseAfterDebounce(current.task, current.body)) return latest;
+      const next = restoreDoneInFence(latest, localIsoMinute(now));
+      if (next === null) return latest;
+      applied = true;
+      const fence = /^---\n[\s\S]*?\n---\n?/.exec(next)!;
+      return fence[0] + applyReviewRelease(current.task, current.body, now).body;
     });
-    if (!appended) return false;
+    if (!applied) return false;
     const verify = parseTaskFile(await this.app.vault.read(file), path);
     return verify.ok && verify.task.status === 'done' && verify.body.includes(REVIEW_RELEASE_TEXT);
   }

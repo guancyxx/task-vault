@@ -92,17 +92,21 @@ describe('VaultSource.revalidateReviewGate (real implementation, re-review R1)',
     expect((files.get('03 Tasks/t.md')!.match(new RegExp(REVIEW_RELEASE_TEXT, 'g')) ?? []).length).toBe(1);
   });
 
-  it.each(['review', 'doing', 'todo'] as const)(
-    'concurrent flip to %s between verify(③) and append(④): no release entry, no false disarm',
+  // 'review' is deliberately absent: under the single-RMW semantics a file observed as
+  // review+gate-marker+citation QUALIFIES for release no matter which interleaving produced
+  // it — a same-value status flip cannot invalidate anything. The harmful review-state
+  // interleaving (citation stripped while status stays review) is covered by the dedicated
+  // third-audit test below.
+  it.each(['doing', 'todo'] as const)(
+    'concurrent flip to %s racing the release RMW: no release entry, no false disarm',
     async (flipped) => {
       const files = new Map<string, string>();
       seedGated(files);
-      // The flip lands after our verify-read but before vault.process's callback sees the
-      // text — at that point step ② already restored status to done, so the concurrent
-      // writer overwrites `status: done` with the flipped value.
+      // The concurrent writer's flip is visible to the RMW callback (it runs before our
+      // callback sees the text): status no longer review → restoreDoneInFence aborts.
       const app = fakeApp(files, () => {
         const raw = files.get('03 Tasks/t.md')!;
-        files.set('03 Tasks/t.md', raw.replace('status: done', `status: ${flipped}`));
+        files.set('03 Tasks/t.md', raw.replace('status: review', `status: ${flipped}`));
       });
       const source = new VaultSource(app);
       await expect(source.revalidateReviewGate('03 Tasks/t.md', NOW)).resolves.toBe(false);
@@ -113,6 +117,24 @@ describe('VaultSource.revalidateReviewGate (real implementation, re-review R1)',
       // Re-armable: a fresh gate cycle can bounce again later — the disarm marker never landed.
     },
   );
+
+  it('citation removed while status stays review (third-audit ①② window): aborts whole release, no stranded done', async () => {
+    const files = new Map<string, string>();
+    seedGated(files);
+    // The exact interleaving the third audit flagged: predicate passed at schedule time,
+    // a concurrent write strips the citation, status is STILL review — the single RMW
+    // re-runs the full predicate against the latest text and must abort entirely.
+    const app = fakeApp(files, () => {
+      const raw = files.get('03 Tasks/t.md')!;
+      files.set('03 Tasks/t.md', raw.replace(CITE_LINE, ''));
+    });
+    const source = new VaultSource(app);
+    await expect(source.revalidateReviewGate('03 Tasks/t.md', NOW)).resolves.toBe(false);
+    const raw = files.get('03 Tasks/t.md')!;
+    expect(raw).not.toContain(REVIEW_RELEASE_TEXT);
+    const reparsed = parseTaskFile(raw, '03 Tasks/t.md');
+    expect(reparsed.ok && reparsed.task.status).toBe('review'); // never restored to done
+  });
 
   it('no confirmation in the body: byte-identical no-op, returns false', async () => {
     const files = new Map<string, string>();

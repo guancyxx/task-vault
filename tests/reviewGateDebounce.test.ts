@@ -47,7 +47,16 @@ class MemVault implements VaultReader, LogWriter, ReviewGateWriter {
     return v;
   }
 
-  async appendLog(): Promise<void> {}
+  async appendLog(path?: string, entry?: { text: string }): Promise<void> {
+    if (path !== undefined && entry !== undefined && entry.text.includes('自动解除')) {
+      this.releaseWrites.push(path);
+    }
+    if (this.appendLogHook) await this.appendLogHook(path, entry);
+  }
+
+  // Third-audit R3 orchestration: record release-edge writes; optional slow-write hook.
+  releaseWrites: string[] = [];
+  appendLogHook?: (path: string | undefined, entry: { text: string } | undefined) => Promise<void>;
 
   async enforceReviewGate(path: string, previous: Status, now: Date): Promise<boolean> {
     const parsed = parseTaskFile(await this.read(path), path);
@@ -232,6 +241,41 @@ describe('gate debounce: guards and idempotency', () => {
     const parsed = parseTaskFile(await vault.read(path), path);
     expect(parsed.ok && parsed.task.status).toBe('done'); // file on disk is fine
     expect(store.entryByPath(path)?.task.status).toBe('review'); // index untouched post-teardown
+  });
+
+  it('dispose() landing inside reconcileBlocked appends stops the remaining blocked-edge writes (third-audit R3)', async () => {
+    // Two dependency pairs: releasing both logs two appendLog writes. Dispose lands while
+    // the first append is pending — the second write must never fire.
+    const mkTask = (id: string, extra: Partial<Task>): void => {
+      vault.set(
+        id,
+        serializeTaskFile(
+          { title: id, status: 'todo', created: '2026-08-24T10:00', assignee: 'cc', ...extra, id } as Task,
+          '',
+        ),
+      );
+    };
+    mkTask('03 Tasks/a-parent.md', { 'blocked-by': ['03 Tasks/a-child.md'], status: 'doing' });
+    mkTask('03 Tasks/a-child.md', { status: 'doing', assignee: 'user' });
+    mkTask('03 Tasks/b-parent.md', { 'blocked-by': ['03 Tasks/b-child.md'], status: 'doing' });
+    mkTask('03 Tasks/b-child.md', { status: 'doing', assignee: 'user' });
+    const writes = vault.releaseWrites;
+    let firstServed = false;
+    vault.appendLogHook = async (): Promise<void> => {
+      if (!firstServed) {
+        firstServed = true;
+        // Dispose lands mid-append (same interleaving as a dispose racing a pending
+        // appendLog: by the time append #2's guard runs, disposed is already true).
+        store.dispose();
+      }
+    };
+    await store.scan(); // baseline with both children doing
+    for (const child of ['03 Tasks/a-child.md', '03 Tasks/b-child.md']) {
+      vault.set(child, vault.files.get(child)!.replace('status: doing', 'status: done'));
+      await store.upsert(child); // releases → appendLog fires per parent
+    }
+    // Only ONE blocked-edge write happened; the dispose inside reconcile stopped the rest.
+    expect(writes.length).toBe(1);
   });
 
   it('rename inside the window: the id-keyed timer fires against the new path (audit R2)', async () => {

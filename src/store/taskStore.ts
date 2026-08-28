@@ -217,16 +217,21 @@ export class TaskStore {
 
     if (this.baselined) {
       const ts = this.now();
+      const generation = this.revalidateGeneration;
+      // Third-audit R3: the cancel check is INSIDE the loop — a dispose landing while one
+      // appendLog is pending must stop the remaining writes, not just the outer callers.
+      const cancelled = (): boolean => this.disposed || generation !== this.revalidateGeneration;
       for (const id of openNow) {
-        if (this.blockedIds.has(id)) continue;
+        if (this.blockedIds.has(id) || cancelled()) continue;
         const e = byId.get(id);
         if (e) await this.writer.appendLog(e.path, mkEdge(ts, e.task.status, 'blocked', '依赖未完成，自动阻塞'));
       }
       for (const id of this.blockedIds) {
-        if (openNow.has(id)) continue;
+        if (openNow.has(id) || cancelled()) continue;
         const e = byId.get(id);
         if (e) await this.writer.appendLog(e.path, mkEdge(ts, 'blocked', e.task.status, '依赖已完成，自动解除'));
       }
+      if (cancelled()) return; // leave blockedIds/baselined untouched for the next live pass
     }
     this.blockedIds = openNow;
     this.baselined = true;
