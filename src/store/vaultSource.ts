@@ -16,6 +16,7 @@ import {
   applyReviewGate,
   applyReviewRelease,
   localIsoMinute,
+  REVIEW_RELEASE_TEXT,
   shouldGuardExternalDone,
   shouldReleaseAfterDebounce,
   type ReviewGateWriter,
@@ -76,16 +77,18 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Decis
   }
 
   // FR-030b debounce re-read (single-shot, scheduled by TaskStore N seconds after a bounce).
-  // Audit R1 (2026-08-28): the release entry is written ONLY after the frontmatter restore is
-  // confirmed done — the log is immutable, so a pre-emptive entry followed by a failed/skipped
-  // restore would leave a permanent disarm marker lying about the file's state. Order:
-  // ① processFrontMatter restores status (guarded: only from review), ② re-read and verify
-  // status === 'done', ③ only then append the release entry. A concurrent writer that flipped
-  // the status off review between ① and ③ makes step ② bail with no entry written — the
-  // debounce can be re-armed by a fresh bounce later, no false disarm.
+  // Audit R1 + re-review R1 (2026-08-28): the release entry is a PERMANENT disarm marker, so
+  // it may only land on a file that is verifiably done at append time. Order:
+  // ① pre-check predicate (byte-identical no-op when false),
+  // ② processFrontMatter restore (guarded: only from review),
+  // ③ re-read + verify status === 'done',
+  // ④ vault.process append — the callback re-checks the REAL status === 'done' plus the same
+  //    predicate (re-evaluated with review semantics solely to reuse the gate-marker/
+  //    confirmation window logic); a concurrent flip to review/doing/todo between ③ and ④
+  //    aborts with no entry written (no false disarm, re-armable by a fresh bounce),
+  // ⑤ 写后回读验证 (contract §6): done + release marker actually on disk, else report false.
   async revalidateReviewGate(path: string, now: Date): Promise<boolean> {
     const file = this.mustFile(path);
-    // Pre-check against the latest full text: predicate false → byte-identical no-op.
     const before = parseTaskFile(await this.app.vault.read(file), path);
     if (!before.ok || !shouldReleaseAfterDebounce(before.task, before.body)) return false;
     let restored = false;
@@ -96,18 +99,25 @@ export class VaultSource implements VaultReader, LogWriter, SectionWriter, Decis
       restored = true;
     });
     if (!restored) return false;
-    // 写后回读验证 (contract §6): the restore is only real if it survived to disk.
     const afterFm = parseTaskFile(await this.app.vault.read(file), path);
     if (!afterFm.ok || afterFm.task.status !== 'done') return false;
+    let appended = false;
     await this.app.vault.process(file, (latest) => {
       const current = parseTaskFile(latest, path);
-      // Re-judge the body against the SAME predicate right before appending: the release
-      // entry is the disarm marker, so it must never land on a body that no longer qualifies.
-      if (!current.ok || !shouldReleaseAfterDebounce({ ...current.task, status: 'review' }, current.body)) return latest;
+      if (
+        !current.ok ||
+        current.task.status !== 'done' ||
+        !shouldReleaseAfterDebounce({ ...current.task, status: 'review' }, current.body)
+      ) {
+        return latest;
+      }
       const fence = /^---\n[\s\S]*?\n---\n?/.exec(latest);
+      appended = true;
       return (fence?.[0] ?? '') + applyReviewRelease(current.task, current.body, now).body;
     });
-    return true;
+    if (!appended) return false;
+    const verify = parseTaskFile(await this.app.vault.read(file), path);
+    return verify.ok && verify.task.status === 'done' && verify.body.includes(REVIEW_RELEASE_TEXT);
   }
 
   // Body-only section replace (used for the `## 委派` block, FR-015). Frontmatter kept verbatim.

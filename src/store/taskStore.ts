@@ -159,7 +159,13 @@ export class TaskStore {
       return;
     }
     if (this.disposed || generation !== this.revalidateGeneration) return;
-    await this.upsert(path);
+    // Re-review R3: a dedicated generation-aware refresh, NOT upsert — upsert's internal
+    // awaits have no checkpoints, and its gate branch must not re-run off a timer anyway.
+    await this.load(path);
+    if (this.disposed || generation !== this.revalidateGeneration) return;
+    await this.reconcileBlocked();
+    if (this.disposed || generation !== this.revalidateGeneration) return;
+    this.emit();
   }
 
   async remove(path: string): Promise<void> {
